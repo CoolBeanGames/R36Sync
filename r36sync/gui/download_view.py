@@ -10,7 +10,7 @@ from typing import Dict, List, Optional, Any
 import customtkinter as ctk
 
 from ..config import CONSOLES, settings
-from ..database import db, parse_rom_region_and_language
+from ..database import db, parse_rom_region_and_language, parse_rom_disc_number
 from ..downloader import downloader, DownloadTask
 
 
@@ -293,6 +293,7 @@ class DownloadView(ctk.CTkFrame):
         size_str = rom.get("size_str", "")
         file_name = rom.get("file_name", "")
         region, lang = parse_rom_region_and_language(file_name)
+        disc_num = parse_rom_disc_number(file_name)
 
         # Check if already in local library (either as downloaded file or extracted file)
         console_dir = Path(settings.library_dir) / rom.get("console_code", "")
@@ -355,8 +356,12 @@ class DownloadView(ctk.CTkFrame):
             anchor="w"
         ).pack(fill="x")
 
-        # Second line: system name • region / language • storage space
-        sub_text = f"{console_name} • Region: {region} • Lang: {lang} • {size_str}"
+        # Second line: system name • disc number (if multi-disc) • region / language • storage space
+        meta_parts = [console_name]
+        if disc_num:
+            meta_parts.append(f"Disc: {disc_num}")
+        meta_parts.extend([f"Region: {region}", f"Lang: {lang}", size_str])
+        sub_text = " • ".join(meta_parts)
         ctk.CTkLabel(
             info_box,
             text=sub_text,

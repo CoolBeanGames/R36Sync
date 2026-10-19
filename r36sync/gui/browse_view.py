@@ -10,7 +10,7 @@ from typing import Dict, List, Optional, Any
 import customtkinter as ctk
 
 from ..config import CONSOLES, ConsoleDef, settings
-from ..database import db, parse_rom_region_and_language
+from ..database import db, parse_rom_region_and_language, parse_rom_disc_number
 from ..downloader import downloader, DownloadTask
 
 
@@ -505,6 +505,7 @@ class BrowseView(ctk.CTkFrame):
         f_name = rom.get("file_name", "")
         size_str = rom.get("size_str", "")
         region, lang = parse_rom_region_and_language(f_name)
+        disc_num = parse_rom_disc_number(f_name)
 
         # Check if already downloaded (either as archive or extracted file)
         stem_lower = Path(f_name).stem.lower()
@@ -565,9 +566,15 @@ class BrowseView(ctk.CTkFrame):
             anchor="w"
         ).pack(fill="x")
 
+        meta_parts = []
+        if disc_num:
+            meta_parts.append(f"Disc: {disc_num}")
+        meta_parts.extend([f"Region: {region}", f"Lang: {lang}", size_str])
+        sub_text = " • ".join(meta_parts)
+
         ctk.CTkLabel(
             info,
-            text=f"Region: {region} • Lang: {lang} • {size_str}",
+            text=sub_text,
             font=ctk.CTkFont(size=11),
             text_color="gray60",
             anchor="w"

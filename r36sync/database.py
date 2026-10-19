@@ -82,6 +82,27 @@ def parse_rom_region_and_language(filename: str) -> Tuple[str, str]:
     return found_region, ', '.join(found_langs)
 
 
+def parse_rom_disc_number(filename: str) -> Optional[str]:
+    """
+    Extracts the disc/disk/CD number or label from a ROM filename.
+    Handles:
+      - 'Thousand Arms (USA) (Disc 1).zip' -> '1'
+      - 'Final Fantasy VII (USA) (Disc 3).bin' -> '3'
+      - 'Lunar 2 (USA) (Disc A).iso' -> 'A'
+      - 'Chrono Cross (USA) (Disc 1 of 2).chd' -> '1'
+      - 'game_1-disc_2.chd' -> '2'
+      - 'Super Mario 64.zip' -> None
+    """
+    stem = Path(filename).stem
+    m = re.search(r'[\(\[]\s*(?:Disc|CD|Disk|Part)[\s_\-]*(\d{1,3}|[a-zA-Z]\b|IV|IX|V?I{1,3})(?:\s*of\s*[0-9]+)?[\)\]]', stem, re.IGNORECASE)
+    if m:
+        return m.group(1)
+    m2 = re.search(r'(?:[\s_\-\.\(\[])(?:Disc|CD|Disk|Part)[\s_\-]*(\d{1,3}|[a-zA-Z]\b|IV|IX|V?I{1,3})(?:\s*of\s*[0-9]+)?(?:[\s_\-\.\)\]]|$)', stem, re.IGNORECASE)
+    if m2:
+        return m2.group(1)
+    return None
+
+
 class Database:
     """Encapsulates SQLite database operations for ROMs and save backups."""
 

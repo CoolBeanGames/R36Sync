@@ -534,6 +534,18 @@ class TestR36Sync(unittest.TestCase):
         self.assertTrue((self.library_dir / "gba" / "Golden Sun.gba").exists())
         self.assertTrue(gs.is_on_pc)
 
+    def test_parse_rom_disc_number(self):
+        from r36sync.database import parse_rom_disc_number
+
+        self.assertEqual(parse_rom_disc_number("Thousand Arms (USA) (Disc 1).zip"), "1")
+        self.assertEqual(parse_rom_disc_number("Thousand Arms (USA) (Disc 2).zip"), "2")
+        self.assertEqual(parse_rom_disc_number("Final Fantasy VIII (USA) (Disc 4).bin"), "4")
+        self.assertEqual(parse_rom_disc_number("Lunar 2 - Eternal Blue (USA) (Disc A).iso"), "A")
+        self.assertEqual(parse_rom_disc_number("Chrono Cross (USA) (Disc 1 of 2).chd"), "1")
+        self.assertEqual(parse_rom_disc_number("game_1-disc_3.zip"), "3")
+        self.assertIsNone(parse_rom_disc_number("Super Mario 64 (USA).z64"))
+        self.assertIsNone(parse_rom_disc_number("Pokemon Emerald (USA, Europe).gba"))
+
 
 if __name__ == "__main__":
     unittest.main()
