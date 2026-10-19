@@ -52,11 +52,22 @@ class BrowseView(ctk.CTkFrame):
         self.current_games: List[Dict[str, Any]] = []
         self._search_timer: Optional[threading.Timer] = None
 
+        self._has_loaded: bool = False
+
         # Build UI containers
         self._create_ui()
 
         # Listen to download queue updates
         downloader.subscribe(self._on_download_task_update)
+
+    def on_tab_activated(self):
+        """Called when user switches to Browse tab."""
+        if not self._has_loaded:
+            self._has_loaded = True
+            self.render_systems()
+        else:
+            if self.systems_container.winfo_ismapped():
+                self.render_systems()
 
     def _create_ui(self):
         # 1. Main View Containers: Systems List vs Game Explorer
@@ -66,8 +77,8 @@ class BrowseView(ctk.CTkFrame):
         self._build_systems_view()
         self._build_game_explorer_view()
 
-        # Show Systems List initially
-        self.show_systems_view()
+        # Show Systems List initially (container only, defer rendering until tab active)
+        self.systems_container.pack(fill="both", expand=True)
 
     # =========================================================================
     # VIEW 1: SYSTEMS LIST (Browse by System)
@@ -477,9 +488,15 @@ class BrowseView(ctk.CTkFrame):
         for rom in self.current_games:
             self._render_game_row(rom, lib_dir)
 
+        try:
+            self.games_scroll._parent_canvas.yview_moveto(0.0)
+        except Exception:
+            pass
+
     def _render_game_row(self, rom: Dict[str, Any], console_lib_dir: Path):
-        row = ctk.CTkFrame(self.games_scroll, corner_radius=8, fg_color=("gray90", "gray18"))
+        row = ctk.CTkFrame(self.games_scroll, corner_radius=8, height=54, fg_color=("gray90", "gray18"))
         row.pack(fill="x", padx=4, pady=3)
+        row.pack_propagate(False)
 
         title = rom.get("title", rom.get("file_name", ""))
         if len(title) > 65:

@@ -17,6 +17,9 @@ from ..sd_detector import sd_detector, SDCardInfo
 from ..sync_manager import sync_manager
 
 
+PAGE_SIZE = 50
+
+
 class SavesHistoryDialog(ctk.CTkToplevel):
     """Modal dialog displaying save game backup history and one-click restores."""
 
@@ -142,10 +145,14 @@ class HandheldView(ctk.CTkFrame):
         self.active_sd: Optional[SDCardInfo] = None
         self.sd_games: List[Dict[str, Any]] = []
         self.filtered_sd_games: List[Dict[str, Any]] = []
+        self.current_page: int = 0
         self.selected_console_filter: str = "all"
         self._thumb_cache: Dict[str, ctk.CTkImage] = {}
 
         self._create_ui()
+
+    def on_tab_activated(self):
+        """Called when user switches to SD Card & Sync tab."""
         self.refresh()
 
     def _create_ui(self):
@@ -290,9 +297,46 @@ class HandheldView(ctk.CTkFrame):
         )
         self.console_dropdown.pack(side="left", padx=4)
 
+        # Pagination controls
+        self.next_btn = ctk.CTkButton(
+            filter_row,
+            text="Next >",
+            width=65,
+            height=28,
+            command=self.next_page
+        )
+        self.next_btn.pack(side="right", padx=4)
+
+        self.page_lbl = ctk.CTkLabel(
+            filter_row,
+            text="Page 1 of 1",
+            font=ctk.CTkFont(size=12)
+        )
+        self.page_lbl.pack(side="right", padx=6)
+
+        self.prev_btn = ctk.CTkButton(
+            filter_row,
+            text="< Prev",
+            width=65,
+            height=28,
+            command=self.prev_page
+        )
+        self.prev_btn.pack(side="right", padx=4)
+
         # Scrollable games table
         self.games_scroll = ctk.CTkScrollableFrame(games_section, corner_radius=8)
         self.games_scroll.pack(fill="both", expand=True, padx=14, pady=(4, 10))
+
+    def next_page(self):
+        total_pages = max(1, (len(self.filtered_sd_games) + PAGE_SIZE - 1) // PAGE_SIZE)
+        if self.current_page + 1 < total_pages:
+            self.current_page += 1
+            self._render_games_table()
+
+    def prev_page(self):
+        if self.current_page > 0:
+            self.current_page -= 1
+            self._render_games_table()
 
     def open_saves_history(self):
         """Opens modal dialog for save backups and restores."""
@@ -319,6 +363,7 @@ class HandheldView(ctk.CTkFrame):
                 continue
             self.filtered_sd_games.append(g)
 
+        self.current_page = 0
         self._render_games_table()
 
     def refresh(self):
@@ -465,6 +510,15 @@ class HandheldView(ctk.CTkFrame):
         for w in self.games_scroll.winfo_children():
             w.destroy()
 
+        total_pages = max(1, (len(self.filtered_sd_games) + PAGE_SIZE - 1) // PAGE_SIZE)
+        if self.current_page >= total_pages:
+            self.current_page = max(0, total_pages - 1)
+
+        cur_p = self.current_page + 1
+        self.page_lbl.configure(text=f"Page {cur_p} of {total_pages}")
+        self.prev_btn.configure(state="normal" if self.current_page > 0 else "disabled")
+        self.next_btn.configure(state="normal" if cur_p < total_pages else "disabled")
+
         self.games_badge.configure(
             text=f"{len(self.sd_games)} games on SD card • Showing {len(self.filtered_sd_games)}"
         )
@@ -488,12 +542,22 @@ class HandheldView(ctk.CTkFrame):
             ).pack(pady=40)
             return
 
-        for game in self.filtered_sd_games:
+        start_idx = self.current_page * PAGE_SIZE
+        end_idx = start_idx + PAGE_SIZE
+        page_games = self.filtered_sd_games[start_idx:end_idx]
+
+        for game in page_games:
             self._render_game_row(game)
 
+        try:
+            self.games_scroll._parent_canvas.yview_moveto(0.0)
+        except Exception:
+            pass
+
     def _render_game_row(self, game: Dict[str, Any]):
-        row = ctk.CTkFrame(self.games_scroll, fg_color=("gray90", "gray18"), corner_radius=8)
+        row = ctk.CTkFrame(self.games_scroll, fg_color=("gray90", "gray18"), corner_radius=8, height=54)
         row.pack(fill="x", padx=4, pady=3)
+        row.pack_propagate(False)
 
         # Thumbnail
         thumb_label = ctk.CTkLabel(row, text="", width=40, height=40)

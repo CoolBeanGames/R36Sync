@@ -19,6 +19,9 @@ class ScannerView(ctk.CTkFrame):
         super().__init__(master, **kwargs)
         self.on_db_updated = on_db_updated
         self._create_ui()
+
+    def on_tab_activated(self):
+        """Called when user switches to Minerva Database tab."""
         self.refresh_stats()
 
     def _create_ui(self):
@@ -111,8 +114,9 @@ class ScannerView(ctk.CTkFrame):
             self._render_console_row(code, c_def.display_name, count)
 
     def _render_console_row(self, code: str, name: str, count: int):
-        row = ctk.CTkFrame(self.scroll_table, fg_color=("gray90", "gray18"), corner_radius=6)
+        row = ctk.CTkFrame(self.scroll_table, fg_color=("gray90", "gray18"), corner_radius=6, height=44)
         row.pack(fill="x", padx=4, pady=2)
+        row.pack_propagate(False)
 
         # Scan single console button packed FIRST on right
         btn = ctk.CTkButton(

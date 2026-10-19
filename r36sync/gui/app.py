@@ -65,7 +65,8 @@ class R36SyncApp(ctk.CTk):
         self.tabview = ctk.CTkTabview(
             self,
             corner_radius=10,
-            fg_color=("gray95", "gray14")
+            fg_color=("gray95", "gray14"),
+            command=self._on_tab_changed
         )
         self.tabview.pack(fill="both", expand=True, padx=12, pady=(4, 10))
 
@@ -122,31 +123,66 @@ class R36SyncApp(ctk.CTk):
         )
         self.settings_view.pack(fill="both", expand=True)
 
+    def _on_tab_changed(self):
+        """Dispatches tab activation event to active tab view."""
+        curr = self.tabview.get()
+        if curr == "Library":
+            if hasattr(self.library_view, "on_tab_activated"):
+                self.library_view.on_tab_activated()
+        elif curr == "Browse":
+            if hasattr(self.browse_view, "on_tab_activated"):
+                self.browse_view.on_tab_activated()
+        elif curr == "Download":
+            if hasattr(self.download_view, "on_tab_activated"):
+                self.download_view.on_tab_activated()
+        elif curr == "SD Card & Sync":
+            if hasattr(self.handheld_view, "on_tab_activated"):
+                self.handheld_view.on_tab_activated()
+        elif curr == "Minerva Database":
+            if hasattr(self.scanner_view, "on_tab_activated"):
+                self.scanner_view.on_tab_activated()
+
     def switch_to_download_tab(self):
         """Switches UI to the Download tab."""
         self.tabview.set("Download")
+        self._on_tab_changed()
 
     def switch_to_browse_tab(self):
         """Switches UI to the Browse tab."""
         self.tabview.set("Browse")
+        self._on_tab_changed()
 
     def on_download_completed(self):
         """Called when a game download finishes; refreshes library and browse."""
         self.library_view.refresh_library()
-        self.browse_view.render_systems()
+        if self.tabview.get() == "Browse":
+            self.browse_view.render_systems()
+        else:
+            self.browse_view._has_loaded = False
 
     def on_minerva_db_updated(self):
         """Called when Minerva database scan adds games."""
-        self.browse_view.render_systems()
-        self.download_view._run_search()
-        self.download_view.update_db_stat()
-        self.scanner_view.refresh_stats()
+        curr = self.tabview.get()
+        if curr == "Browse":
+            self.browse_view.render_systems()
+        else:
+            self.browse_view._has_loaded = False
+
+        if curr == "Download":
+            self.download_view._run_search()
+            self.download_view.update_db_stat()
+        else:
+            self.download_view._has_loaded = False
+
+        if curr == "Minerva Database":
+            self.scanner_view.refresh_stats()
 
     def on_settings_updated(self):
         """Called when user changes settings."""
         library_watcher.update_watch_directory(settings.library_dir)
         self.library_view.refresh_library()
-        self.handheld_view.refresh()
+        if self.tabview.get() == "SD Card & Sync":
+            self.handheld_view.refresh()
 
     def on_library_fs_changed(self):
         """Triggered by background LibraryWatcher when any library file or playlist changes."""
@@ -185,9 +221,8 @@ class R36SyncApp(ctk.CTk):
 
     def _on_startup(self):
         """Runs startup checks, scans library, and triggers Minerva Archive initial scan."""
-        # 1. Populate Library immediately from disk
+        # 1. Populate Library immediately from disk (active default tab)
         self.library_view.refresh_library()
-        self.handheld_view.refresh()
 
         # 2. Start live filesystem monitoring
         library_watcher.subscribe(self.on_library_fs_changed)
@@ -204,8 +239,8 @@ class R36SyncApp(ctk.CTk):
                 frac = cur / max(total, 1)
                 self.after(0, lambda: [
                     self.show_banner(f"Scanning Minerva Archive: {msg} ({int(frac * 100)}%)", frac),
-                    self.scanner_view.refresh_stats(),
-                    self.download_view.update_db_stat()
+                    self.scanner_view.refresh_stats() if self.tabview.get() == "Minerva Database" else None,
+                    self.download_view.update_db_stat() if self.tabview.get() == "Download" else None
                 ])
 
             def on_complete(total_added):
@@ -234,8 +269,8 @@ class R36SyncApp(ctk.CTk):
                 frac = cur / max(total, 1)
                 self.after(0, lambda: [
                     self.show_banner(f"Updating Minerva Archive: {msg} ({int(frac * 100)}%)", frac),
-                    self.scanner_view.refresh_stats(),
-                    self.download_view.update_db_stat()
+                    self.scanner_view.refresh_stats() if self.tabview.get() == "Minerva Database" else None,
+                    self.download_view.update_db_stat() if self.tabview.get() == "Download" else None
                 ])
 
             def on_complete(total_added):
@@ -258,8 +293,8 @@ class R36SyncApp(ctk.CTk):
             )
         else:
             # Instant startup using existing stored database
-            self.download_view._run_search()
-            self.download_view.update_db_stat()
+            # Other tabs load lazily on activation
+            pass
 
     def _on_close(self):
         """Clean shutdown handler."""

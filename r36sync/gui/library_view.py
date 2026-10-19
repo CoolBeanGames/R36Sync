@@ -17,6 +17,9 @@ from ..sync_manager import sync_manager, LibraryGame, SyncResult
 from .multidisc_dialog import MultiDiscDialog
 
 
+PAGE_SIZE = 50
+
+
 class LibraryView(ctk.CTkFrame):
     """The Main Page: Displays local library games and manages R36S handheld sync."""
 
@@ -26,6 +29,7 @@ class LibraryView(ctk.CTkFrame):
         self.on_switch_to_browse = on_switch_to_browse
         self.games: List[LibraryGame] = []
         self.filtered_games: List[LibraryGame] = []
+        self.current_page: int = 0
         self.active_sd_info: Optional[SDCardInfo] = None
         self.selected_console_filter: str = "all"
         self._thumb_cache: Dict[str, ctk.CTkImage] = {}
@@ -152,7 +156,7 @@ class LibraryView(ctk.CTkFrame):
 
         # 2. Filter & Search Row
         filter_row = ctk.CTkFrame(self, fg_color="transparent")
-        filter_row.pack(fill="x", padx=12, pady=(4, 6))
+        filter_row.pack(fill="x", padx=12, pady=(4, 4))
 
         self.search_entry = ctk.CTkEntry(
             filter_row,
@@ -172,20 +176,64 @@ class LibraryView(ctk.CTkFrame):
         )
         self.console_dropdown.pack(side="left", padx=4)
 
+        # 3. Pagination & Navigation Bar
+        nav_row = ctk.CTkFrame(self, fg_color="transparent")
+        nav_row.pack(fill="x", padx=12, pady=(2, 6))
+
         self.stats_label = ctk.CTkLabel(
-            filter_row,
+            nav_row,
             text="0 games in library",
             text_color="gray60",
             font=ctk.CTkFont(size=12)
         )
-        self.stats_label.pack(side="right", padx=6)
+        self.stats_label.pack(side="left", padx=4)
 
-        # 3. Main Games Scrollable Container
+        self.next_btn = ctk.CTkButton(
+            nav_row,
+            text="Next >",
+            width=70,
+            height=26,
+            command=self.next_page
+        )
+        self.next_btn.pack(side="right", padx=4)
+
+        self.page_lbl = ctk.CTkLabel(
+            nav_row,
+            text="Page 1 of 1",
+            font=ctk.CTkFont(size=12)
+        )
+        self.page_lbl.pack(side="right", padx=8)
+
+        self.prev_btn = ctk.CTkButton(
+            nav_row,
+            text="< Prev",
+            width=70,
+            height=26,
+            command=self.prev_page
+        )
+        self.prev_btn.pack(side="right", padx=4)
+
+        # 4. Main Games Scrollable Container
         self.scroll_frame = ctk.CTkScrollableFrame(self, corner_radius=10)
         self.scroll_frame.pack(fill="both", expand=True, padx=12, pady=(0, 10))
 
         # Checkbox variable storage
         self.check_vars: Dict[str, ctk.BooleanVar] = {}
+
+    def next_page(self):
+        total_pages = max(1, (len(self.filtered_games) + PAGE_SIZE - 1) // PAGE_SIZE)
+        if self.current_page + 1 < total_pages:
+            self.current_page += 1
+            self._render_games()
+
+    def prev_page(self):
+        if self.current_page > 0:
+            self.current_page -= 1
+            self._render_games()
+
+    def on_tab_activated(self):
+        """Called when user switches to Library tab."""
+        self.refresh_library()
 
     def refresh_sd_card(self):
         """Scans for R36S SD card and updates status badge."""
@@ -261,14 +309,29 @@ class LibraryView(ctk.CTkFrame):
                 continue
             self.filtered_games.append(game)
 
-        total_synced = sum(1 for g in self.games if g.is_on_handheld)
-        self.stats_label.configure(
-            text=f"{len(self.games)} in library ({total_synced} on handheld) • Showing {len(self.filtered_games)}"
-        )
-
+        self.current_page = 0
         self._render_games()
 
     def _render_games(self):
+        total_games = len(self.filtered_games)
+        total_pages = max(1, (total_games + PAGE_SIZE - 1) // PAGE_SIZE)
+        cur_p = min(self.current_page + 1, total_pages)
+        self.page_lbl.configure(text=f"Page {cur_p} of {total_pages}")
+        self.prev_btn.configure(state="normal" if self.current_page > 0 else "disabled")
+        self.next_btn.configure(state="normal" if cur_p < total_pages else "disabled")
+
+        total_synced = sum(1 for g in self.games if g.is_on_handheld)
+        start_idx = self.current_page * PAGE_SIZE
+        end_idx = min(start_idx + PAGE_SIZE, total_games)
+        if total_games > 0:
+            self.stats_label.configure(
+                text=f"{len(self.games)} in library ({total_synced} on handheld) • Showing {start_idx + 1}-{end_idx} of {total_games}"
+            )
+        else:
+            self.stats_label.configure(
+                text=f"{len(self.games)} in library ({total_synced} on handheld)"
+            )
+
         # Clear existing rows
         for widget in self.scroll_frame.winfo_children():
             widget.destroy()
@@ -318,12 +381,19 @@ class LibraryView(ctk.CTkFrame):
                     ).pack(side="left", padx=6)
             return
 
-        for game in self.filtered_games:
+        page_games = self.filtered_games[start_idx:end_idx]
+        for game in page_games:
             self._render_game_row(game)
 
+        try:
+            self.scroll_frame._parent_canvas.yview_moveto(0.0)
+        except Exception:
+            pass
+
     def _render_game_row(self, game: LibraryGame):
-        row = ctk.CTkFrame(self.scroll_frame, corner_radius=8, fg_color=("gray90", "gray18"))
+        row = ctk.CTkFrame(self.scroll_frame, corner_radius=8, height=54, fg_color=("gray90", "gray18"))
         row.pack(fill="x", padx=4, pady=3)
+        row.pack_propagate(False)
 
         key = f"{game.console_code}:{game.file_name}"
         var = ctk.BooleanVar(value=game.is_checked)

@@ -29,10 +29,19 @@ class DownloadView(ctk.CTkFrame):
         self.current_results: List[Dict[str, Any]] = []
         self.selected_console_code: Optional[str] = None
         self._search_timer: Optional[threading.Timer] = None
+        self._has_loaded: bool = False
 
         self._create_ui()
         # Listen to download queue updates
         downloader.subscribe(self._on_download_task_update)
+
+    def on_tab_activated(self):
+        """Called when user switches to Download tab."""
+        if not self._has_loaded:
+            self._has_loaded = True
+            self._run_search()
+        else:
+            self.update_db_stat()
 
     def _create_ui(self):
         # 1. Header Frame
@@ -266,9 +275,15 @@ class DownloadView(ctk.CTkFrame):
         for rom in self.current_results:
             self._render_rom_row(rom)
 
+        try:
+            self.scroll_frame._parent_canvas.yview_moveto(0.0)
+        except Exception:
+            pass
+
     def _render_rom_row(self, rom: Dict[str, Any]):
-        row = ctk.CTkFrame(self.scroll_frame, corner_radius=8, fg_color=("gray90", "gray18"))
+        row = ctk.CTkFrame(self.scroll_frame, corner_radius=8, height=54, fg_color=("gray90", "gray18"))
         row.pack(fill="x", padx=4, pady=3)
+        row.pack_propagate(False)
 
         title = rom.get("title", rom.get("file_name", ""))
         if len(title) > 65:
