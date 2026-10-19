@@ -12,7 +12,7 @@ import threading
 import time
 import urllib.parse
 import urllib.request
-from typing import Callable, Dict, Optional, Any
+from typing import Callable, Dict, List, Optional, Any
 
 from .config import ARIA2_PATH, settings
 from .cover_art import cover_manager
@@ -109,19 +109,23 @@ class Downloader:
             try:
                 self._execute_download(task)
 
+                # Unzip if the file was downloaded as .zip or .7z, and delete the archive
+                extracted_files = self._unzip_archive_if_needed(task)
+
                 # Automatically download cover art for the new game before marking completed
                 c_code = task.rom_data.get("console_code", "")
-                f_name = task.rom_data.get("file_name", "")
+                f_name = task.dest_path.name if task.dest_path else task.rom_data.get("file_name", "")
                 if settings.download_cover_art and c_code and f_name:
                     cover_manager.download_cover_art(c_code, f_name)
 
                 # Live multi-disc update: automatically create or update .m3a/.m3u playlist
-                if task.dest_path and task.dest_path.exists():
-                    try:
-                        from .m3u_manager import m3u_manager
-                        m3u_manager.handle_disc_file_added(task.dest_path, console_code=c_code)
-                    except Exception as e:
-                        print(f"Error updating playlist for downloaded disc {task.dest_path.name}: {e}")
+                for f_path in extracted_files:
+                    if f_path.exists():
+                        try:
+                            from .m3u_manager import m3u_manager
+                            m3u_manager.handle_disc_file_added(f_path, console_code=c_code)
+                        except Exception as e:
+                            print(f"Error updating playlist for downloaded disc {f_path.name}: {e}")
 
                 task.status = "Completed"
                 task.progress = 1.0
@@ -134,6 +138,59 @@ class Downloader:
                 self._notify(task)
                 self._queue.task_done()
                 self._active_task = None
+
+    def _unzip_archive_if_needed(self, task: DownloadTask) -> List[Path]:
+        """
+        If the downloaded file is a .zip (or .7z) archive, extract its contents to
+        the console directory and delete the zip file.
+        Returns the list of extracted file paths.
+        """
+        dest_path = task.dest_path
+        if not dest_path or not dest_path.exists():
+            return []
+
+        ext = dest_path.suffix.lower()
+        if ext not in [".zip", ".7z"]:
+            return [dest_path]
+
+        target_dir = dest_path.parent
+        extracted_paths: List[Path] = []
+
+        if ext == ".zip":
+            import zipfile
+            try:
+                task.speed = "Unzipping archive..."
+                self._notify(task)
+                with zipfile.ZipFile(dest_path, "r") as zf:
+                    for member in zf.infolist():
+                        if member.is_dir():
+                            continue
+                        extracted_file = zf.extract(member, path=target_dir)
+                        extracted_paths.append(Path(extracted_file))
+                # Delete the original zip file
+                dest_path.unlink()
+                print(f"Unzipped {dest_path.name} ({len(extracted_paths)} files) and deleted zip.")
+            except Exception as e:
+                print(f"Error unzipping {dest_path}: {e}")
+                return [dest_path]
+        elif ext == ".7z":
+            try:
+                task.speed = "Extracting 7z..."
+                self._notify(task)
+                subprocess.run(
+                    ["7z", "x", str(dest_path), f"-o{str(target_dir)}", "-y"],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    check=True
+                )
+                dest_path.unlink()
+            except Exception:
+                pass
+
+        if extracted_paths:
+            task.dest_path = extracted_paths[0]
+            return extracted_paths
+        return [dest_path]
 
     def _execute_download(self, task: DownloadTask):
         rom = task.rom_data

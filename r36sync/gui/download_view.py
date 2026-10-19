@@ -10,7 +10,7 @@ from typing import Dict, List, Optional, Any
 import customtkinter as ctk
 
 from ..config import CONSOLES, settings
-from ..database import db
+from ..database import db, parse_rom_region_and_language
 from ..downloader import downloader, DownloadTask
 
 
@@ -283,17 +283,29 @@ class DownloadView(ctk.CTkFrame):
 
         console_name = rom.get("console_name", "")
         size_str = rom.get("size_str", "")
+        file_name = rom.get("file_name", "")
+        region, lang = parse_rom_region_and_language(file_name)
+
+        # Second line: system name • region / language • storage space
+        sub_text = f"{console_name} • Region: {region} • Lang: {lang} • {size_str}"
         ctk.CTkLabel(
             info_box,
-            text=f"{console_name} • {size_str}",
+            text=sub_text,
             font=ctk.CTkFont(size=11),
             text_color="gray60",
             anchor="w"
         ).pack(fill="x")
 
-        # Check if already in local library
-        lib_file = Path(settings.library_dir) / rom.get("console_code", "") / rom.get("file_name", "")
-        is_downloaded = lib_file.exists() and lib_file.stat().st_size > 0
+        # Check if already in local library (either as downloaded file or extracted file)
+        console_dir = Path(settings.library_dir) / rom.get("console_code", "")
+        lib_file = console_dir / file_name
+        is_downloaded = (lib_file.exists() and lib_file.stat().st_size > 0)
+        if not is_downloaded and console_dir.exists():
+            stem_lower = Path(file_name).stem.lower()
+            for f in console_dir.iterdir():
+                if f.stem.lower() == stem_lower and f.suffix.lower() not in [".torrent", ".magnet"]:
+                    is_downloaded = True
+                    break
 
         # Action Buttons
         btn_frame = ctk.CTkFrame(row, fg_color="transparent")

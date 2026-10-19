@@ -31,6 +31,7 @@ class LibraryGame:
     handheld_save_file: Optional[Path] = None
     is_playlist: bool = False
     disc_count: int = 1
+    is_on_pc: bool = True
 
     @property
     def size_str(self) -> str:
@@ -158,12 +159,127 @@ class SyncManager:
                     is_checked=is_checked,
                     handheld_save_file=handheld_save,
                     is_playlist=is_playlist,
-                    disc_count=disc_count
+                    disc_count=disc_count,
+                    is_on_pc=True
                 ))
+
+        # Collect all games found on PC to avoid duplicates
+        seen_pc_games = set((g.console_code, g.stem.lower()) for g in games)
+
+        # Second pass: scan connected SD card for pre-existing games not in PC library
+        if sd_roms_root and sd_roms_root.exists():
+            from .m3u_manager import m3u_manager
+            for console_dir in sd_roms_root.iterdir():
+                if not console_dir.is_dir() or console_dir.name.startswith("."):
+                    continue
+                code = console_dir.name.lower()
+                c_def = CONSOLES.get(code)
+                c_name = c_def.display_name if c_def else code.upper()
+
+                # Find all playlists on SD
+                sd_hidden_discs = set()
+                sd_playlists = [f for f in console_dir.iterdir() if f.is_file() and f.suffix.lower() in [".m3u", ".m3a"]]
+                sd_pl_disc_map = {}
+                for pl in sd_playlists:
+                    discs = m3u_manager.parse_playlist_discs(pl)
+                    sd_pl_disc_map[pl] = discs
+                    for d in discs:
+                        sd_hidden_discs.add(d.name.lower())
+
+                for f in console_dir.iterdir():
+                    if not f.is_file():
+                        continue
+                    ext = f.suffix.lower()
+                    if ext in [".png", ".jpg", ".txt", ".json", ".xml", ".torrent", ".magnet"] + SAVE_EXTENSIONS:
+                        continue
+                    if c_def and c_def.extensions and ext not in c_def.extensions and ext not in [".zip", ".7z"]:
+                        continue
+
+                    # If part of an active playlist on SD, don't show loose disc
+                    if f.name.lower() in sd_hidden_discs:
+                        continue
+
+                    # If already present in PC library, skip duplicate
+                    if (code, f.stem.lower()) in seen_pc_games:
+                        continue
+
+                    stem = f.stem
+                    is_playlist = ext in [".m3u", ".m3a"]
+                    disc_count = 1
+
+                    if is_playlist:
+                        discs = sd_pl_disc_map.get(f, [])
+                        disc_count = max(1, len(discs))
+                        try:
+                            size_bytes = sum(d.stat().st_size for d in discs if d.exists())
+                        except Exception:
+                            size_bytes = f.stat().st_size
+                        if size_bytes == 0:
+                            size_bytes = f.stat().st_size
+                    else:
+                        size_bytes = f.stat().st_size
+
+                    # Check cover art on SD card images/ folder or PC library
+                    sd_art = console_dir / "images" / f"{stem}-image.png"
+                    if not sd_art.exists():
+                        sd_art = console_dir / "images" / f"{stem}.png"
+                    pc_art = cover_manager.get_cover_art_path(str(lib_path), code, f.name)
+                    art_path = sd_art if sd_art.exists() else (pc_art if pc_art.exists() else None)
+
+                    handheld_save = sd_saves_map.get((code, stem))
+
+                    games.append(LibraryGame(
+                        file_path=f,
+                        file_name=f.name,
+                        stem=stem,
+                        console_code=code,
+                        console_name=c_name,
+                        size_bytes=size_bytes,
+                        has_cover_art=art_path is not None,
+                        cover_art_path=art_path,
+                        is_on_handheld=True,
+                        is_checked=True,
+                        handheld_save_file=handheld_save,
+                        is_playlist=is_playlist,
+                        disc_count=disc_count,
+                        is_on_pc=False
+                    ))
 
         # Sort alphabetically by console then title
         games.sort(key=lambda g: (g.console_name, g.stem.lower()))
         return games
+
+    def import_sd_game_to_pc(self, game: LibraryGame, pc_library_dir: Optional[str] = None) -> bool:
+        """Copies an SD-card-only game into the local PC library."""
+        pc_lib = Path(pc_library_dir or settings.library_dir)
+        target_console = pc_lib / game.console_code
+        target_console.mkdir(parents=True, exist_ok=True)
+        dest_file = target_console / game.file_name
+        shutil.copy2(game.file_path, dest_file)
+
+        # If playlist, copy referenced discs
+        if game.is_playlist:
+            from .m3u_manager import m3u_manager
+            discs = m3u_manager.parse_playlist_discs(game.file_path)
+            for d in discs:
+                try:
+                    rel = d.relative_to(game.file_path.parent)
+                except ValueError:
+                    rel = Path(d.name)
+                dest_disc = target_console / rel
+                dest_disc.parent.mkdir(parents=True, exist_ok=True)
+                if d.exists():
+                    shutil.copy2(d, dest_disc)
+
+        # Copy cover art if present
+        if game.cover_art_path and game.cover_art_path.exists():
+            images_dir = target_console / "images"
+            images_dir.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(game.cover_art_path, images_dir / f"{game.stem}-image.png")
+
+        game.file_path = dest_file
+        game.is_on_pc = True
+        return True
 
     def backup_handheld_saves(
         self,

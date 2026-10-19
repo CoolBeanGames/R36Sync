@@ -374,6 +374,8 @@ class LibraryView(ctk.CTkFrame):
         sub_text = f"{game.console_name} • {game.size_str}"
         if game.is_playlist:
             sub_text += f" • Playlist ({game.file_path.suffix.lower()})"
+        if not game.is_on_pc:
+            sub_text += " • (On SD Card)"
 
         sub_lbl = ctk.CTkLabel(
             info_frame,
@@ -385,7 +387,11 @@ class LibraryView(ctk.CTkFrame):
         sub_lbl.pack(fill="x")
 
         # Handheld Sync Badge
-        if game.is_on_handheld:
+        if game.is_on_handheld and not game.is_on_pc:
+            badge_text = "SD Card Only"
+            badge_color = ("#e0e7ff", "#312e81")
+            badge_text_color = ("#3730a3", "#a5b4fc")
+        elif game.is_on_handheld:
             badge_text = "On Handheld"
             badge_color = ("#d1fae5", "#064e3b")
             badge_text_color = ("#065f46", "#6ee7b7")
@@ -404,7 +410,20 @@ class LibraryView(ctk.CTkFrame):
             padx=8,
             pady=2
         )
-        badge.pack(side="right", padx=(4, 12))
+        badge.pack(side="right", padx=(4, 8))
+
+        # Import to PC button (if pre-existing on SD card only)
+        if not game.is_on_pc:
+            import_btn = ctk.CTkButton(
+                row,
+                text="⬇ PC",
+                width=42,
+                height=26,
+                fg_color="#6366f1",
+                hover_color="#4f46e5",
+                command=lambda g=game: self.import_game_to_pc(g)
+            )
+            import_btn.pack(side="right", padx=2)
 
         # Re-fetch art button
         art_btn = ctk.CTkButton(
@@ -429,6 +448,15 @@ class LibraryView(ctk.CTkFrame):
             command=lambda g=game: self.delete_game_from_library(g)
         )
         del_btn.pack(side="right", padx=(2, 6))
+
+    def import_game_to_pc(self, game: LibraryGame):
+        import tkinter.messagebox as mb
+        try:
+            sync_manager.import_sd_game_to_pc(game, settings.library_dir)
+            self.refresh_library()
+            mb.showinfo("Imported", f"Successfully imported '{game.stem}' to your PC library!")
+        except Exception as e:
+            mb.showerror("Import Failed", f"Could not import game: {e}")
 
     def delete_game_from_library(self, game: LibraryGame):
         import tkinter.messagebox as mb

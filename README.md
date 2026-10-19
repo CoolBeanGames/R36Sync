@@ -12,27 +12,34 @@ A modern graphical desktop application for managing, downloading, and synchroniz
    - Searches execute against the stored database in under 15ms—no repetitive network queries or archive server load.
 
 2. **Library View (Main Page)**
-   - Displays all downloaded games and ROMs present on disk in your library.
-   - Displays game title, console badge, file size, cover art thumbnail, and handheld sync status.
+   - Displays all downloaded games on PC as well as pre-existing games detected on your connected R36S SD card.
+   - Displays game title, console badge, file size, cover art thumbnail, and handheld sync status (`On Handheld`, `SD Card Only`, `PC Library Only`).
+   - One-click **"⬇ PC"** button to import pre-existing games from the SD card directly into your local PC library.
    - Interactive checkboxes: Games already present on your R36S handheld appear checked automatically.
-   - Quick filtering by search term and console.
+   - Quick filtering by search term and console, plus delete button for local cleanup.
 
 3. **Browse View (Browse by System -> Expand by Game)**
    - Visual catalog of all 22+ retro systems with badges, game counts, and library indicators.
    - Click into any system to expand and browse all its games.
+   - Displays region and language information for each game.
    - Quick A-Z alphabetical jumper bar (`#`, `A`, `B`, `C` ... `Z`) to jump directly to any letter.
    - One-click downloads with real-time Libretro cover art fetching.
 
 4. **Download Manager & Search**
    - Instant search across 40,000+ indexed ROMs with console filtering.
-   - One-click **"Download to Library"**: Downloads the ROM and automatically fetches high-resolution box art from the official Libretro thumbnail database.
+   - Displays **Region and Language** on the second line between the system name and storage space (`System • Region • Lang • Storage Size`).
+   - **Automatic Unzip & Delete**: When an archive (`.zip`) is downloaded, it automatically extracts the ROM(s) into your library and deletes the `.zip` file.
+   - Automatically fetches high-resolution box art from the official Libretro thumbnail database.
    - Built-in high-speed `aria2c` downloader supporting BitTorrent file extraction.
    - Options to save `.torrent` files or launch magnet links in default torrent clients (e.g., qBittorrent).
 
-4. **R36S Handheld SD Card Detection & Folder Structure Check**
-   - Automatically detects connected SD cards with ArkOS / EASYROMS formatting.
-   - Evaluates signature console folders (`gb`, `gba`, `snes`, `nes`, `megadrive`, `psx`, `n64`, `bios`, etc.) and volume labels.
-   - Includes a **"Setup Standard R36S Folders"** tool to prepare fresh SD cards with the complete ArkOS directory and `images/` hierarchy.
+5. **R36S Handheld Tab (Games on SD Card & Diagnostics)**
+   - Shows all **games installed on the R36S SD card** across all retro consoles, with box art, sizes, and PC library status.
+   - Easily search and filter games installed on the handheld.
+   - 1-click **"Import to PC"** to copy games from the handheld to your PC library.
+   - **"🗑️ Delete from SD"** button to remove unwanted games directly from the handheld.
+   - Diagnostic header showing drive letter, volume label, storage progress bar, and ArkOS folder checks.
+   - Dedicated **"Saves History"** modal for viewing and restoring backed-up save files.
 
 5. **Multi-Disc Playlist Manager & Live Updating (.m3a / .m3u)**
    - **Real-time Live Updating**:

@@ -20,6 +20,68 @@ def clean_game_title(raw_name: str) -> str:
     return cleaned if cleaned else name
 
 
+REGIONS_SET = {
+    'USA', 'Europe', 'Japan', 'World', 'Asia', 'China', 'Korea', 'Australia',
+    'Brazil', 'Canada', 'France', 'Germany', 'Spain', 'Italy', 'United Kingdom',
+    'UK', 'Netherlands', 'Sweden', 'Russia', 'Denmark', 'Norway', 'Finland',
+    'Poland', 'Taiwan', 'Hong Kong', 'Latin America', 'Scandinavia'
+}
+
+LANGUAGES_MAP = {
+    'En': 'English', 'Fr': 'French', 'De': 'German', 'Es': 'Spanish',
+    'It': 'Italian', 'Nl': 'Dutch', 'Pt': 'Portuguese', 'Sv': 'Swedish',
+    'No': 'Norwegian', 'Da': 'Danish', 'Fi': 'Finnish', 'Ja': 'Japanese',
+    'Ko': 'Korean', 'Zh': 'Chinese', 'Ru': 'Russian', 'Pl': 'Polish'
+}
+
+
+def parse_rom_region_and_language(filename: str) -> Tuple[str, str]:
+    """
+    Extracts (region, language) from a ROM filename.
+    Handles standard No-Intro / Redump parenthesis tags:
+      - '007 - Blood Stone (USA).zip' -> ('USA', 'En')
+      - '007 - Everything or Nothing (USA, Europe) (En,Fr,De).zip' -> ('USA, Europe', 'En, Fr, De')
+      - 'Chrono Trigger (Japan).zip' -> ('Japan', 'Ja')
+    """
+    stem = Path(filename).stem
+    tags = re.findall(r'\((.*?)\)', stem)
+
+    found_region = None
+    found_langs = []
+
+    for tag in tags:
+        parts = [p.strip() for p in tag.split(',')]
+        if any(p in REGIONS_SET for p in parts):
+            if not found_region:
+                found_region = tag
+        if any(p in LANGUAGES_MAP for p in parts):
+            found_langs.extend([p for p in parts if p in LANGUAGES_MAP])
+
+    if not found_region:
+        found_region = 'Global'
+
+    if not found_langs:
+        r_lower = found_region.lower()
+        if 'japan' in r_lower:
+            found_langs = ['Ja']
+        elif 'france' in r_lower:
+            found_langs = ['Fr']
+        elif 'germany' in r_lower:
+            found_langs = ['De']
+        elif 'spain' in r_lower:
+            found_langs = ['Es']
+        elif 'italy' in r_lower:
+            found_langs = ['It']
+        elif 'china' in r_lower:
+            found_langs = ['Zh']
+        elif 'korea' in r_lower:
+            found_langs = ['Ko']
+        else:
+            found_langs = ['En']
+
+    return found_region, ', '.join(found_langs)
+
+
 class Database:
     """Encapsulates SQLite database operations for ROMs and save backups."""
 

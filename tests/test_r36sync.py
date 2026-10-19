@@ -465,8 +465,78 @@ class TestR36Sync(unittest.TestCase):
         finally:
             watcher.stop()
 
+    def test_parse_rom_region_and_language(self):
+        from r36sync.database import parse_rom_region_and_language
+        r, l = parse_rom_region_and_language("007 - Blood Stone (USA).zip")
+        self.assertEqual(r, "USA")
+        self.assertEqual(l, "En")
+
+        r, l = parse_rom_region_and_language("007 - Everything or Nothing (USA, Europe) (En,Fr,De).zip")
+        self.assertEqual(r, "USA, Europe")
+        self.assertEqual(l, "En, Fr, De")
+
+        r, l = parse_rom_region_and_language("Chrono Trigger (Japan).zip")
+        self.assertEqual(r, "Japan")
+        self.assertEqual(l, "Ja")
+
+    def test_downloader_unzip_and_delete_archive(self):
+        import zipfile
+        from r36sync.downloader import downloader, DownloadTask
+
+        gba_dir = self.library_dir / "gba"
+        gba_dir.mkdir(parents=True, exist_ok=True)
+        zip_path = gba_dir / "test_game.zip"
+
+        # Create a test zip file
+        with zipfile.ZipFile(zip_path, "w") as zf:
+            zf.writestr("test_game.gba", b"TEST_GBA_BINARY")
+
+        task = DownloadTask({"console_code": "gba", "file_name": "test_game.zip"})
+        task.dest_path = zip_path
+
+        extracted = downloader._unzip_archive_if_needed(task)
+        self.assertEqual(len(extracted), 1)
+        self.assertEqual(extracted[0].name, "test_game.gba")
+        self.assertTrue((gba_dir / "test_game.gba").exists())
+        self.assertFalse(zip_path.exists())
+
+    def test_preexisting_sd_games_in_library(self):
+        from r36sync.sync_manager import sync_manager
+
+        # Create pre-existing games on SD card only (not in PC library)
+        sd_gba = self.sd_root / "gba"
+        sd_gba.mkdir(parents=True, exist_ok=True)
+        (sd_gba / "Golden Sun.gba").write_bytes(b"GOLDEN_SUN")
+
+        sd_psx = self.sd_root / "psx"
+        sd_psx.mkdir(parents=True, exist_ok=True)
+        (sd_psx / "Tekken 3.chd").write_bytes(b"TEKKEN_3")
+
+        # Scan library: should discover both pre-existing SD games!
+        games = sync_manager.scan_library(str(self.library_dir), self.sd_root)
+        sd_only_games = [g for g in games if not g.is_on_pc]
+        self.assertEqual(len(sd_only_games), 2)
+
+        titles = [g.stem for g in sd_only_games]
+        self.assertIn("Golden Sun", titles)
+        self.assertIn("Tekken 3", titles)
+
+        # Verify they are marked on handheld and checked
+        for g in sd_only_games:
+            self.assertTrue(g.is_on_handheld)
+            self.assertTrue(g.is_checked)
+            self.assertFalse(g.is_on_pc)
+
+        # Test Import to PC
+        gs = next(g for g in sd_only_games if g.stem == "Golden Sun")
+        success = sync_manager.import_sd_game_to_pc(gs, str(self.library_dir))
+        self.assertTrue(success)
+        self.assertTrue((self.library_dir / "gba" / "Golden Sun.gba").exists())
+        self.assertTrue(gs.is_on_pc)
+
 
 if __name__ == "__main__":
     unittest.main()
+
 
 

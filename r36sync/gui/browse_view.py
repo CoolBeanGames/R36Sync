@@ -10,7 +10,7 @@ from typing import Dict, List, Optional, Any
 import customtkinter as ctk
 
 from ..config import CONSOLES, ConsoleDef, settings
-from ..database import db
+from ..database import db, parse_rom_region_and_language
 from ..downloader import downloader, DownloadTask
 
 
@@ -494,16 +494,23 @@ class BrowseView(ctk.CTkFrame):
 
         f_name = rom.get("file_name", "")
         size_str = rom.get("size_str", "")
+        region, lang = parse_rom_region_and_language(f_name)
         ctk.CTkLabel(
             info,
-            text=f"{f_name} • {size_str}",
+            text=f"Region: {region} • Lang: {lang} • {size_str}",
             font=ctk.CTkFont(size=11),
             text_color="gray60",
             anchor="w"
         ).pack(fill="x")
 
-        # Check if already downloaded
+        # Check if already downloaded (either as archive or extracted file)
+        stem_lower = Path(f_name).stem.lower()
         is_downloaded = (console_lib_dir / f_name).exists()
+        if not is_downloaded and console_lib_dir.exists():
+            for f in console_lib_dir.iterdir():
+                if f.stem.lower() == stem_lower and f.suffix.lower() not in [".torrent", ".magnet"]:
+                    is_downloaded = True
+                    break
 
         btn_box = ctk.CTkFrame(row, fg_color="transparent")
         btn_box.pack(side="right", padx=10, pady=6)
