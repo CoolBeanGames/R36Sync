@@ -114,6 +114,18 @@ class ScannerView(ctk.CTkFrame):
         row = ctk.CTkFrame(self.scroll_table, fg_color=("gray90", "gray18"), corner_radius=6)
         row.pack(fill="x", padx=4, pady=2)
 
+        # Scan single console button packed FIRST on right
+        btn = ctk.CTkButton(
+            row,
+            text="Scan Now",
+            width=80,
+            height=26,
+            fg_color=("gray75", "gray28"),
+            hover_color=("gray65", "gray35"),
+            command=lambda c=code: self.scan_single_console(c)
+        )
+        btn.pack(side="right", padx=8)
+
         info = ctk.CTkFrame(row, fg_color="transparent")
         info.pack(side="left", fill="both", expand=True, padx=10, pady=4)
 
@@ -133,18 +145,6 @@ class ScannerView(ctk.CTkFrame):
             text_color=color,
             anchor="w"
         ).pack(fill="x")
-
-        # Scan single console button
-        btn = ctk.CTkButton(
-            row,
-            text="Scan Now",
-            width=80,
-            height=26,
-            fg_color=("gray75", "gray28"),
-            hover_color=("gray65", "gray35"),
-            command=lambda c=code: self.scan_single_console(c)
-        )
-        btn.pack(side="right", padx=8)
 
     def scan_single_console(self, code: str):
         c_def = CONSOLES.get(code)

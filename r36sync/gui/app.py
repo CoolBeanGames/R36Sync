@@ -150,12 +150,28 @@ class R36SyncApp(ctk.CTk):
 
     def on_library_fs_changed(self):
         """Triggered by background LibraryWatcher when any library file or playlist changes."""
-        self.after(0, self._handle_library_fs_update)
+        def schedule_update():
+            if hasattr(self, "_pending_fs_timer") and self._pending_fs_timer:
+                try:
+                    self.after_cancel(self._pending_fs_timer)
+                except Exception:
+                    pass
+            self._pending_fs_timer = self.after(400, self._handle_library_fs_update)
+
+        self.after(0, schedule_update)
 
     def _handle_library_fs_update(self):
+        self._pending_fs_timer = None
         try:
-            self.library_view.refresh_library()
-            self.browse_view.render_systems()
+            curr_tab = self.tabview.get()
+            if curr_tab == "Library":
+                self.library_view.refresh_library()
+            elif curr_tab == "Browse":
+                self.browse_view.render_systems()
+            elif curr_tab == "SD Card & Sync":
+                self.handheld_view.refresh()
+            else:
+                self.library_view.refresh_library()
         except Exception as e:
             print(f"Error updating views after fs change: {e}")
 
@@ -180,8 +196,9 @@ class R36SyncApp(ctk.CTk):
         # 3. Check if Minerva Archive should be scanned
         total_cached = db.get_total_rom_count()
 
-        if settings.auto_scan_on_launch or total_cached == 0:
-            self.show_banner("Scanning https://minerva-archive.org/ to build local database...", 0.05)
+        if total_cached == 0:
+            # First launch: database is empty, scan to populate initial catalog
+            self.show_banner("Scanning https://minerva-archive.org/ to build initial database...", 0.05)
 
             def on_progress(code, cur, total, msg):
                 frac = cur / max(total, 1)
@@ -209,7 +226,38 @@ class R36SyncApp(ctk.CTk):
                 on_complete=on_complete,
                 on_error=on_error
             )
+        elif settings.auto_scan_on_launch:
+            # User opted into checking for updates on launch
+            self.show_banner("Checking Minerva Archive for updates...", 0.05)
+
+            def on_progress(code, cur, total, msg):
+                frac = cur / max(total, 1)
+                self.after(0, lambda: [
+                    self.show_banner(f"Updating Minerva Archive: {msg} ({int(frac * 100)}%)", frac),
+                    self.scanner_view.refresh_stats(),
+                    self.download_view.update_db_stat()
+                ])
+
+            def on_complete(total_added):
+                self.after(0, lambda: [
+                    self.show_banner(f"Minerva Archive catalog updated! {db.get_total_rom_count():,} games stored.", 1.0),
+                    self.on_minerva_db_updated(),
+                    self.after(4000, self.hide_banner)
+                ])
+
+            def on_error(err):
+                self.after(0, lambda: [
+                    self.show_banner(f"Minerva Archive note: {err}", 1.0),
+                    self.after(5000, self.hide_banner)
+                ])
+
+            scanner.scan_all_consoles_async(
+                on_progress=on_progress,
+                on_complete=on_complete,
+                on_error=on_error
+            )
         else:
+            # Instant startup using existing stored database
             self.download_view._run_search()
             self.download_view.update_db_stat()
 

@@ -143,30 +143,7 @@ class MultiDiscDialog(ctkToplevel := ctk.CTkToplevel):
         card = ctk.CTkFrame(self.sets_scroll, corner_radius=8, fg_color=("gray90", "gray18"))
         card.pack(fill="x", padx=4, pady=4)
 
-        info = ctk.CTkFrame(card, fg_color="transparent")
-        info.pack(side="left", fill="both", expand=True, padx=12, pady=8)
-
-        ctk.CTkLabel(
-            info,
-            text=s.base_name,
-            font=ctk.CTkFont(size=13, weight="bold"),
-            anchor="w"
-        ).pack(fill="x")
-
-        discs_detail = ", ".join(f.name for f in s.disc_files[:3])
-        if len(s.disc_files) > 3:
-            discs_detail += f" (+{len(s.disc_files) - 3} more)"
-
-        sub_text = f"{s.console_code.upper()} • {s.disc_count} Discs ({s.size_str}) • {discs_detail}"
-        ctk.CTkLabel(
-            info,
-            text=sub_text,
-            font=ctk.CTkFont(size=11),
-            text_color="gray60",
-            anchor="w"
-        ).pack(fill="x")
-
-        # Action / Status Buttons
+        # Action / Status Buttons packed FIRST on right
         btn_box = ctk.CTkFrame(card, fg_color="transparent")
         btn_box.pack(side="right", padx=12, pady=8)
 
@@ -201,6 +178,30 @@ class MultiDiscDialog(ctkToplevel := ctk.CTkToplevel):
                 height=28,
                 command=lambda set_i=s: self._create_single_playlist(set_i)
             ).pack(side="left", padx=4)
+
+        # Info Frame packed SECOND to fill remaining space
+        info = ctk.CTkFrame(card, fg_color="transparent")
+        info.pack(side="left", fill="both", expand=True, padx=12, pady=8)
+
+        ctk.CTkLabel(
+            info,
+            text=s.base_name,
+            font=ctk.CTkFont(size=13, weight="bold"),
+            anchor="w"
+        ).pack(fill="x")
+
+        discs_detail = ", ".join(f.name for f in s.disc_files[:3])
+        if len(s.disc_files) > 3:
+            discs_detail += f" (+{len(s.disc_files) - 3} more)"
+
+        sub_text = f"{s.console_code.upper()} • {s.disc_count} Discs ({s.size_str}) • {discs_detail}"
+        ctk.CTkLabel(
+            info,
+            text=sub_text,
+            font=ctk.CTkFont(size=11),
+            text_color="gray60",
+            anchor="w"
+        ).pack(fill="x")
 
     def _create_single_playlist(self, set_info: MultiDiscSet):
         ext = self.format_var.get()

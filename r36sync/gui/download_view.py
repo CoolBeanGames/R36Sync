@@ -270,31 +270,14 @@ class DownloadView(ctk.CTkFrame):
         row = ctk.CTkFrame(self.scroll_frame, corner_radius=8, fg_color=("gray90", "gray18"))
         row.pack(fill="x", padx=4, pady=3)
 
-        info_box = ctk.CTkFrame(row, fg_color="transparent")
-        info_box.pack(side="left", fill="both", expand=True, padx=12, pady=6)
-
         title = rom.get("title", rom.get("file_name", ""))
-        ctk.CTkLabel(
-            info_box,
-            text=title,
-            font=ctk.CTkFont(size=13, weight="bold"),
-            anchor="w"
-        ).pack(fill="x")
+        if len(title) > 65:
+            title = title[:62] + "..."
 
         console_name = rom.get("console_name", "")
         size_str = rom.get("size_str", "")
         file_name = rom.get("file_name", "")
         region, lang = parse_rom_region_and_language(file_name)
-
-        # Second line: system name • region / language • storage space
-        sub_text = f"{console_name} • Region: {region} • Lang: {lang} • {size_str}"
-        ctk.CTkLabel(
-            info_box,
-            text=sub_text,
-            font=ctk.CTkFont(size=11),
-            text_color="gray60",
-            anchor="w"
-        ).pack(fill="x")
 
         # Check if already in local library (either as downloaded file or extracted file)
         console_dir = Path(settings.library_dir) / rom.get("console_code", "")
@@ -307,7 +290,7 @@ class DownloadView(ctk.CTkFrame):
                     is_downloaded = True
                     break
 
-        # Action Buttons
+        # Action Buttons packed FIRST so they stay pinned to the right edge within the window
         btn_frame = ctk.CTkFrame(row, fg_color="transparent")
         btn_frame.pack(side="right", padx=10, pady=6)
 
@@ -335,7 +318,6 @@ class DownloadView(ctk.CTkFrame):
             )
             dl_btn.pack(side="left", padx=4)
 
-        # Options dropdown or secondary button
         opt_btn = ctk.CTkButton(
             btn_frame,
             text="•••",
@@ -346,6 +328,27 @@ class DownloadView(ctk.CTkFrame):
             command=lambda r=rom: self._show_rom_options(r)
         )
         opt_btn.pack(side="left", padx=2)
+
+        # Info Box packed SECOND to occupy remaining horizontal space
+        info_box = ctk.CTkFrame(row, fg_color="transparent")
+        info_box.pack(side="left", fill="both", expand=True, padx=12, pady=6)
+
+        ctk.CTkLabel(
+            info_box,
+            text=title,
+            font=ctk.CTkFont(size=13, weight="bold"),
+            anchor="w"
+        ).pack(fill="x")
+
+        # Second line: system name • region / language • storage space
+        sub_text = f"{console_name} • Region: {region} • Lang: {lang} • {size_str}"
+        ctk.CTkLabel(
+            info_box,
+            text=sub_text,
+            font=ctk.CTkFont(size=11),
+            text_color="gray60",
+            anchor="w"
+        ).pack(fill="x")
 
     def download_game(self, rom: Dict[str, Any]):
         """Queues game for download and updates UI."""

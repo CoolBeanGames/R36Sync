@@ -355,13 +355,76 @@ class LibraryView(ctk.CTkFrame):
         else:
             thumb_label.configure(text="🎮", font=ctk.CTkFont(size=16))
 
-        # Game title and info
+        # Handheld Sync Badge
+        if game.is_on_handheld and not game.is_on_pc:
+            badge_text = "SD Card Only"
+            badge_color = ("#e0e7ff", "#312e81")
+            badge_text_color = ("#3730a3", "#a5b4fc")
+        elif game.is_on_handheld:
+            badge_text = "On Handheld"
+            badge_color = ("#d1fae5", "#064e3b")
+            badge_text_color = ("#065f46", "#6ee7b7")
+        else:
+            badge_text = "PC Library Only"
+            badge_color = ("gray80", "gray25")
+            badge_text_color = ("gray30", "gray70")
+
+        # Pack right-hand action controls FIRST so they are never shoved outside window
+        del_btn = ctk.CTkButton(
+            row,
+            text="🗑️",
+            width=32,
+            height=26,
+            fg_color=("gray75", "gray28"),
+            hover_color=("#b91c1c", "#991b1b"),
+            command=lambda g=game: self.delete_game_from_library(g)
+        )
+        del_btn.pack(side="right", padx=(2, 6))
+
+        art_btn = ctk.CTkButton(
+            row,
+            text="Art",
+            width=36,
+            height=26,
+            fg_color=("gray75", "gray28"),
+            hover_color=("gray65", "gray35"),
+            command=lambda g=game: self.fetch_art_for_game(g)
+        )
+        art_btn.pack(side="right", padx=2)
+
+        if not game.is_on_pc:
+            import_btn = ctk.CTkButton(
+                row,
+                text="⬇ PC",
+                width=42,
+                height=26,
+                fg_color="#6366f1",
+                hover_color="#4f46e5",
+                command=lambda g=game: self.import_game_to_pc(g)
+            )
+            import_btn.pack(side="right", padx=2)
+
+        badge = ctk.CTkLabel(
+            row,
+            text=badge_text,
+            font=ctk.CTkFont(size=11, weight="bold"),
+            fg_color=badge_color,
+            text_color=badge_text_color,
+            corner_radius=6,
+            padx=8,
+            pady=2
+        )
+        badge.pack(side="right", padx=(4, 6))
+
+        # Game title and info packed AFTER right buttons to occupy remaining space cleanly
         info_frame = ctk.CTkFrame(row, fg_color="transparent")
         info_frame.pack(side="left", fill="both", expand=True, padx=8, pady=6)
 
         display_title = game.stem
+        if len(display_title) > 65:
+            display_title = display_title[:62] + "..."
         if game.is_playlist:
-            display_title = f"{game.stem}  💿 [{game.disc_count} Discs]"
+            display_title = f"{display_title}  💿 [{game.disc_count} Discs]"
 
         title_lbl = ctk.CTkLabel(
             info_frame,
@@ -386,77 +449,14 @@ class LibraryView(ctk.CTkFrame):
         )
         sub_lbl.pack(fill="x")
 
-        # Handheld Sync Badge
-        if game.is_on_handheld and not game.is_on_pc:
-            badge_text = "SD Card Only"
-            badge_color = ("#e0e7ff", "#312e81")
-            badge_text_color = ("#3730a3", "#a5b4fc")
-        elif game.is_on_handheld:
-            badge_text = "On Handheld"
-            badge_color = ("#d1fae5", "#064e3b")
-            badge_text_color = ("#065f46", "#6ee7b7")
-        else:
-            badge_text = "PC Library Only"
-            badge_color = ("gray80", "gray25")
-            badge_text_color = ("gray30", "gray70")
-
-        badge = ctk.CTkLabel(
-            row,
-            text=badge_text,
-            font=ctk.CTkFont(size=11, weight="bold"),
-            fg_color=badge_color,
-            text_color=badge_text_color,
-            corner_radius=6,
-            padx=8,
-            pady=2
-        )
-        badge.pack(side="right", padx=(4, 8))
-
-        # Import to PC button (if pre-existing on SD card only)
-        if not game.is_on_pc:
-            import_btn = ctk.CTkButton(
-                row,
-                text="⬇ PC",
-                width=42,
-                height=26,
-                fg_color="#6366f1",
-                hover_color="#4f46e5",
-                command=lambda g=game: self.import_game_to_pc(g)
-            )
-            import_btn.pack(side="right", padx=2)
-
-        # Re-fetch art button
-        art_btn = ctk.CTkButton(
-            row,
-            text="Art",
-            width=36,
-            height=26,
-            fg_color=("gray75", "gray28"),
-            hover_color=("gray65", "gray35"),
-            command=lambda g=game: self.fetch_art_for_game(g)
-        )
-        art_btn.pack(side="right", padx=2)
-
-        # Delete button
-        del_btn = ctk.CTkButton(
-            row,
-            text="🗑️",
-            width=32,
-            height=26,
-            fg_color=("gray75", "gray28"),
-            hover_color=("#b91c1c", "#991b1b"),
-            command=lambda g=game: self.delete_game_from_library(g)
-        )
-        del_btn.pack(side="right", padx=(2, 6))
-
     def import_game_to_pc(self, game: LibraryGame):
         import tkinter.messagebox as mb
         try:
             sync_manager.import_sd_game_to_pc(game, settings.library_dir)
             self.refresh_library()
-            mb.showinfo("Imported", f"Successfully imported '{game.stem}' to your PC library!")
+            mb.showinfo("Imported", f"Successfully imported '{game.stem}' to your PC library!", parent=self.winfo_toplevel())
         except Exception as e:
-            mb.showerror("Import Failed", f"Could not import game: {e}")
+            mb.showerror("Import Failed", f"Could not import game: {e}", parent=self.winfo_toplevel())
 
     def delete_game_from_library(self, game: LibraryGame):
         import tkinter.messagebox as mb
@@ -464,7 +464,7 @@ class LibraryView(ctk.CTkFrame):
         if game.is_playlist:
             msg = f"Delete playlist '{game.stem}' and all its {game.disc_count} disc files from your library?"
 
-        if not mb.askyesno("Confirm Delete", msg):
+        if not mb.askyesno("Confirm Delete", msg, parent=self.winfo_toplevel()):
             return
 
         try:
@@ -487,7 +487,7 @@ class LibraryView(ctk.CTkFrame):
 
             self.refresh_library()
         except Exception as e:
-            mb.showerror("Delete Failed", f"Could not delete game: {e}")
+            mb.showerror("Delete Failed", f"Could not delete game: {e}", parent=self.winfo_toplevel())
 
     def _get_ctk_thumb(self, path_str: str) -> Optional[ctk.CTkImage]:
         if path_str in self._thumb_cache:

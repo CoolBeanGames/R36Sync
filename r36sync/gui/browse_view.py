@@ -203,7 +203,20 @@ class BrowseView(ctk.CTkFrame):
         )
         badge.pack(side="left", padx=(12, 10), pady=10)
 
-        # Info Frame
+        # Action: Expand / Browse Button packed FIRST on right
+        browse_btn = ctk.CTkButton(
+            card,
+            text="Browse Games →" if total_in_db > 0 else "Scan & Browse",
+            font=ctk.CTkFont(size=12, weight="bold"),
+            width=130,
+            height=32,
+            fg_color=accent_color,
+            hover_color=CONSOLE_COLORS.get(c_def.code, ("#2563eb", "#1e40af"))[1],
+            command=lambda c=c_def: self.open_system_games(c)
+        )
+        browse_btn.pack(side="right", padx=12, pady=10)
+
+        # Info Frame packed SECOND to occupy remaining space
         info = ctk.CTkFrame(card, fg_color="transparent")
         info.pack(side="left", fill="both", expand=True, pady=8)
 
@@ -232,19 +245,6 @@ class BrowseView(ctk.CTkFrame):
             anchor="w"
         )
         status_lbl.pack(fill="x")
-
-        # Action: Expand / Browse Button
-        browse_btn = ctk.CTkButton(
-            card,
-            text="Browse Games →" if total_in_db > 0 else "Scan & Browse",
-            font=ctk.CTkFont(size=12, weight="bold"),
-            width=130,
-            height=32,
-            fg_color=accent_color,
-            hover_color=CONSOLE_COLORS.get(c_def.code, ("#2563eb", "#1e40af"))[1],
-            command=lambda c=c_def: self.open_system_games(c)
-        )
-        browse_btn.pack(side="right", padx=12, pady=10)
 
         # Make entire card clickable
         for widget in [card, info, title_lbl, status_lbl]:
@@ -481,27 +481,13 @@ class BrowseView(ctk.CTkFrame):
         row = ctk.CTkFrame(self.games_scroll, corner_radius=8, fg_color=("gray90", "gray18"))
         row.pack(fill="x", padx=4, pady=3)
 
-        info = ctk.CTkFrame(row, fg_color="transparent")
-        info.pack(side="left", fill="both", expand=True, padx=10, pady=6)
-
         title = rom.get("title", rom.get("file_name", ""))
-        ctk.CTkLabel(
-            info,
-            text=title,
-            font=ctk.CTkFont(size=13, weight="bold"),
-            anchor="w"
-        ).pack(fill="x")
+        if len(title) > 65:
+            title = title[:62] + "..."
 
         f_name = rom.get("file_name", "")
         size_str = rom.get("size_str", "")
         region, lang = parse_rom_region_and_language(f_name)
-        ctk.CTkLabel(
-            info,
-            text=f"Region: {region} • Lang: {lang} • {size_str}",
-            font=ctk.CTkFont(size=11),
-            text_color="gray60",
-            anchor="w"
-        ).pack(fill="x")
 
         # Check if already downloaded (either as archive or extracted file)
         stem_lower = Path(f_name).stem.lower()
@@ -512,6 +498,7 @@ class BrowseView(ctk.CTkFrame):
                     is_downloaded = True
                     break
 
+        # Action button container packed FIRST so it stays pinned to the right edge
         btn_box = ctk.CTkFrame(row, fg_color="transparent")
         btn_box.pack(side="right", padx=10, pady=6)
 
@@ -549,6 +536,25 @@ class BrowseView(ctk.CTkFrame):
             command=lambda r=rom: self._show_rom_options(r)
         )
         opt_btn.pack(side="left", padx=2)
+
+        # Info Frame packed SECOND to take up remaining space cleanly
+        info = ctk.CTkFrame(row, fg_color="transparent")
+        info.pack(side="left", fill="both", expand=True, padx=10, pady=6)
+
+        ctk.CTkLabel(
+            info,
+            text=title,
+            font=ctk.CTkFont(size=13, weight="bold"),
+            anchor="w"
+        ).pack(fill="x")
+
+        ctk.CTkLabel(
+            info,
+            text=f"Region: {region} • Lang: {lang} • {size_str}",
+            font=ctk.CTkFont(size=11),
+            text_color="gray60",
+            anchor="w"
+        ).pack(fill="x")
 
     def download_game(self, rom: Dict[str, Any]):
         downloader.enqueue_download(rom)

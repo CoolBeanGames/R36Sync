@@ -27,7 +27,10 @@ IGNORED_DIR_NAMES = {
 }
 
 IGNORED_EXTENSIONS = {
-    ".aria2", ".tmp", ".crdownload", ".part", ".swp", ".lock"
+    ".aria2", ".tmp", ".crdownload", ".part", ".swp", ".lock",
+    ".png", ".jpg", ".jpeg", ".webp", ".bmp", ".ico",
+    ".db", ".db-journal", ".db-wal", ".db-shm",
+    ".torrent", ".magnet", ".txt", ".nfo", ".ini", ".log"
 }
 
 
@@ -58,7 +61,7 @@ class LibraryWatcher:
     Automatically keeps multi-disc .m3a/.m3u playlists up to date and notifies GUI views.
     """
 
-    def __init__(self, debounce_delay: float = 0.35):
+    def __init__(self, debounce_delay: float = 0.75):
         self.debounce_delay = debounce_delay
         self._observer: Optional[Observer] = None
         self._current_path: Optional[str] = None

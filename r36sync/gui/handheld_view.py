@@ -75,6 +75,17 @@ class SavesHistoryDialog(ctk.CTkToplevel):
             row = ctk.CTkFrame(self.scroll, fg_color=("gray90", "gray18"), corner_radius=6)
             row.pack(fill="x", padx=4, pady=2)
 
+            restore_btn = ctk.CTkButton(
+                row,
+                text="Restore to SD",
+                width=100,
+                height=26,
+                fg_color=("gray75", "gray28"),
+                hover_color=("gray65", "gray35"),
+                command=lambda s=save: self.restore_save(s)
+            )
+            restore_btn.pack(side="right", padx=8)
+
             info_box = ctk.CTkFrame(row, fg_color="transparent")
             info_box.pack(side="left", fill="both", expand=True, padx=10, pady=4)
 
@@ -96,27 +107,16 @@ class SavesHistoryDialog(ctk.CTkToplevel):
                 anchor="w"
             ).pack(fill="x")
 
-            restore_btn = ctk.CTkButton(
-                row,
-                text="Restore to SD",
-                width=100,
-                height=26,
-                fg_color=("gray75", "gray28"),
-                hover_color=("gray65", "gray35"),
-                command=lambda s=save: self.restore_save(s)
-            )
-            restore_btn.pack(side="right", padx=8)
-
     def restore_save(self, save_record):
         if not self.active_sd or not self.active_sd.roms_root.exists():
             import tkinter.messagebox as mb
-            mb.showwarning("No SD Card", "Please connect your R36S SD card first.")
+            mb.showwarning("No SD Card", "Please connect your R36S SD card first.", parent=self)
             return
 
         backup_path = Path(save_record.get("backup_path", ""))
         if not backup_path.exists():
             import tkinter.messagebox as mb
-            mb.showerror("Missing File", "The backup file was not found on disk.")
+            mb.showerror("Missing File", "The backup file was not found on disk.", parent=self)
             return
 
         console_code = save_record.get("console_code", "")
@@ -127,10 +127,10 @@ class SavesHistoryDialog(ctk.CTkToplevel):
         try:
             shutil.copy2(backup_path, dest_file)
             import tkinter.messagebox as mb
-            mb.showinfo("Save Restored", f"Restored {dest_file.name} to {console_code} on R36S!")
+            mb.showinfo("Save Restored", f"Restored {dest_file.name} to {console_code} on R36S!", parent=self)
         except Exception as e:
             import tkinter.messagebox as mb
-            mb.showerror("Error", f"Failed to restore save: {e}")
+            mb.showerror("Error", f"Failed to restore save: {e}", parent=self)
 
 
 class HandheldView(ctk.CTkFrame):
@@ -373,6 +373,21 @@ class HandheldView(ctk.CTkFrame):
         sd_root = self.active_sd.roms_root
         pc_lib = Path(settings.library_dir)
 
+        # Pre-index PC library files per console code for instant O(1) checks
+        pc_library_stems: Dict[str, set] = {}
+        for c_k in CONSOLES.keys():
+            pc_c_dir = pc_lib / c_k
+            if pc_c_dir.exists():
+                try:
+                    pc_library_stems[c_k] = {
+                        pf.stem.lower() for pf in pc_c_dir.iterdir()
+                        if pf.is_file() and pf.suffix.lower() not in [".torrent", ".magnet", ".png", ".jpg"]
+                    }
+                except Exception:
+                    pc_library_stems[c_k] = set()
+            else:
+                pc_library_stems[c_k] = set()
+
         from ..m3u_manager import m3u_manager
 
         for console_dir in sd_root.iterdir():
@@ -420,17 +435,8 @@ class HandheldView(ctk.CTkFrame):
                 else:
                     size_bytes = f.stat().st_size
 
-                # Check if in PC library
-                pc_console_dir = pc_lib / code
-                is_on_pc = False
-                if pc_console_dir.exists():
-                    if (pc_console_dir / f.name).exists():
-                        is_on_pc = True
-                    else:
-                        for pf in pc_console_dir.iterdir():
-                            if pf.stem.lower() == stem.lower() and pf.suffix.lower() not in [".torrent", ".magnet"]:
-                                is_on_pc = True
-                                break
+                # Fast O(1) in-memory check if in PC library
+                is_on_pc = stem.lower() in pc_library_stems.get(code, set())
 
                 # Cover art
                 sd_art = console_dir / "images" / f"{stem}-image.png"
@@ -503,11 +509,59 @@ class HandheldView(ctk.CTkFrame):
         else:
             thumb_label.configure(text="🎮", font=ctk.CTkFont(size=16))
 
-        # Title & Info
+        # Status badge (PC status)
+        if game.get("is_on_pc"):
+            badge_text = "✓ In PC Library"
+            badge_color = ("#d1fae5", "#064e3b")
+            badge_text_color = ("#065f46", "#6ee7b7")
+        else:
+            badge_text = "SD Card Only"
+            badge_color = ("#e0e7ff", "#312e81")
+            badge_text_color = ("#3730a3", "#a5b4fc")
+
+        # Pack right-side buttons FIRST so they stay fixed on the right
+        del_btn = ctk.CTkButton(
+            row,
+            text="🗑️",
+            width=32,
+            height=26,
+            fg_color=("gray75", "gray28"),
+            hover_color=("#b91c1c", "#991b1b"),
+            command=lambda g=game: self.delete_game_from_sd(g)
+        )
+        del_btn.pack(side="right", padx=(2, 6))
+
+        if not game.get("is_on_pc"):
+            import_btn = ctk.CTkButton(
+                row,
+                text="⬇ Import to PC",
+                width=90,
+                height=26,
+                fg_color="#6366f1",
+                hover_color="#4f46e5",
+                command=lambda g=game: self.import_to_pc(g)
+            )
+            import_btn.pack(side="right", padx=4)
+
+        badge = ctk.CTkLabel(
+            row,
+            text=badge_text,
+            font=ctk.CTkFont(size=11, weight="bold"),
+            fg_color=badge_color,
+            text_color=badge_text_color,
+            corner_radius=6,
+            padx=8,
+            pady=2
+        )
+        badge.pack(side="right", padx=(4, 8))
+
+        # Title & Info packed SECOND to occupy remaining horizontal space
         info_box = ctk.CTkFrame(row, fg_color="transparent")
         info_box.pack(side="left", fill="both", expand=True, padx=6, pady=4)
 
         display_title = game["stem"]
+        if len(display_title) > 65:
+            display_title = display_title[:62] + "..."
         if game.get("is_playlist"):
             display_title += f"  💿 [{game.get('disc_count', 1)} Discs]"
 
@@ -526,53 +580,6 @@ class HandheldView(ctk.CTkFrame):
             text_color="gray60",
             anchor="w"
         ).pack(fill="x")
-
-        # Status badge (PC status)
-        if game.get("is_on_pc"):
-            badge_text = "✓ In PC Library"
-            badge_color = ("#d1fae5", "#064e3b")
-            badge_text_color = ("#065f46", "#6ee7b7")
-        else:
-            badge_text = "SD Card Only"
-            badge_color = ("#e0e7ff", "#312e81")
-            badge_text_color = ("#3730a3", "#a5b4fc")
-
-        badge = ctk.CTkLabel(
-            row,
-            text=badge_text,
-            font=ctk.CTkFont(size=11, weight="bold"),
-            fg_color=badge_color,
-            text_color=badge_text_color,
-            corner_radius=6,
-            padx=8,
-            pady=2
-        )
-        badge.pack(side="right", padx=(4, 8))
-
-        # Import to PC button if not on PC
-        if not game.get("is_on_pc"):
-            import_btn = ctk.CTkButton(
-                row,
-                text="⬇ Import to PC",
-                width=90,
-                height=26,
-                fg_color="#6366f1",
-                hover_color="#4f46e5",
-                command=lambda g=game: self.import_to_pc(g)
-            )
-            import_btn.pack(side="right", padx=4)
-
-        # Delete from SD button
-        del_btn = ctk.CTkButton(
-            row,
-            text="🗑️",
-            width=32,
-            height=26,
-            fg_color=("gray75", "gray28"),
-            hover_color=("#b91c1c", "#991b1b"),
-            command=lambda g=game: self.delete_game_from_sd(g)
-        )
-        del_btn.pack(side="right", padx=(2, 6))
 
     def import_to_pc(self, game: Dict[str, Any]):
         """Copies game file and box art from SD card into local PC library."""
@@ -605,15 +612,15 @@ class HandheldView(ctk.CTkFrame):
 
             game["is_on_pc"] = True
             self._render_games_table()
-            mb.showinfo("Imported", f"Successfully imported '{game['stem']}' to your PC library!")
+            mb.showinfo("Imported", f"Successfully imported '{game['stem']}' to your PC library!", parent=self.winfo_toplevel())
         except Exception as e:
-            mb.showerror("Import Failed", f"Could not import game: {e}")
+            mb.showerror("Import Failed", f"Could not import game: {e}", parent=self.winfo_toplevel())
 
     def delete_game_from_sd(self, game: Dict[str, Any]):
         """Deletes game and any associated discs/art from the SD card."""
         import tkinter.messagebox as mb
         title = game["stem"]
-        if not mb.askyesno("Confirm Delete", f"Delete '{title}' from your R36S SD card?"):
+        if not mb.askyesno("Confirm Delete", f"Delete '{title}' from your R36S SD card?", parent=self.winfo_toplevel()):
             return
 
         try:
@@ -638,9 +645,9 @@ class HandheldView(ctk.CTkFrame):
                     art_file.unlink()
 
             self.refresh()
-            mb.showinfo("Deleted", f"Deleted '{title}' from R36S SD card.")
+            mb.showinfo("Deleted", f"Deleted '{title}' from R36S SD card.", parent=self.winfo_toplevel())
         except Exception as e:
-            mb.showerror("Delete Failed", f"Could not delete game from SD: {e}")
+            mb.showerror("Delete Failed", f"Could not delete game from SD: {e}", parent=self.winfo_toplevel())
 
     def _get_ctk_thumb(self, path_str: str) -> Optional[ctk.CTkImage]:
         if path_str in self._thumb_cache:
@@ -670,7 +677,7 @@ class HandheldView(ctk.CTkFrame):
         created = sd_detector.create_r36s_folder_structure(target)
         self.refresh()
         import tkinter.messagebox as mb
-        mb.showinfo("Folders Ready", f"Created {len(created)} console and box art folders on {target}!")
+        mb.showinfo("Folders Ready", f"Created {len(created)} console and box art folders on {target}!", parent=self.winfo_toplevel())
 
     def backup_saves_now(self):
         """Manual trigger to backup all save files on the SD card."""
@@ -691,7 +698,8 @@ class HandheldView(ctk.CTkFrame):
             import tkinter.messagebox as mb
             mb.showinfo(
                 "Save Backup Complete",
-                f"Successfully backed up {count} save file(s) ({b_bytes / 1024:.1f} KB) to your PC!"
+                f"Successfully backed up {count} save file(s) ({b_bytes / 1024:.1f} KB) to your PC!",
+                parent=self.winfo_toplevel()
             )
 
         threading.Thread(target=task, daemon=True).start()

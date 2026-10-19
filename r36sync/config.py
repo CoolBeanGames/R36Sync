@@ -262,7 +262,7 @@ class Settings:
         self.library_dir: str = str(DEFAULT_LIBRARY_DIR)
         self.backup_dir: str = str(DEFAULT_BACKUP_DIR)
         self.sd_card_dir: Optional[str] = None
-        self.auto_scan_on_launch: bool = True
+        self.auto_scan_on_launch: bool = False
         self.auto_backup_saves: bool = True
         self.download_cover_art: bool = True
         self.playlist_format: str = "m3a"
@@ -278,7 +278,7 @@ class Settings:
                     self.library_dir = data.get("library_dir", str(DEFAULT_LIBRARY_DIR))
                     self.backup_dir = data.get("backup_dir", str(DEFAULT_BACKUP_DIR))
                     self.sd_card_dir = data.get("sd_card_dir")
-                    self.auto_scan_on_launch = data.get("auto_scan_on_launch", True)
+                    self.auto_scan_on_launch = data.get("auto_scan_on_launch", False)
                     self.auto_backup_saves = data.get("auto_backup_saves", True)
                     self.download_cover_art = data.get("download_cover_art", True)
                     self.playlist_format = data.get("playlist_format", "m3a")

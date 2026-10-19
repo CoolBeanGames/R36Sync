@@ -177,11 +177,13 @@ class Downloader:
             try:
                 task.speed = "Extracting 7z..."
                 self._notify(task)
+                creationflags = subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0
                 subprocess.run(
                     ["7z", "x", str(dest_path), f"-o{str(target_dir)}", "-y"],
                     stdout=subprocess.DEVNULL,
                     stderr=subprocess.DEVNULL,
-                    check=True
+                    check=True,
+                    creationflags=creationflags
                 )
                 dest_path.unlink()
             except Exception:
