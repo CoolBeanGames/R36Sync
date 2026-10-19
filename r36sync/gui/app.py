@@ -8,6 +8,7 @@ import customtkinter as ctk
 
 from ..config import settings
 from ..database import db
+from ..library_watcher import library_watcher
 from ..minerva_scanner import scanner
 from .library_view import LibraryView
 from .browse_view import BrowseView
@@ -32,6 +33,9 @@ class R36SyncApp(ctk.CTk):
         self.minsize(920, 600)
 
         self._create_layout()
+
+        # Handle clean exit
+        self.protocol("WM_DELETE_WINDOW", self._on_close)
 
         # Startup triggers
         self.after(300, self._on_startup)
@@ -140,8 +144,20 @@ class R36SyncApp(ctk.CTk):
 
     def on_settings_updated(self):
         """Called when user changes settings."""
+        library_watcher.update_watch_directory(settings.library_dir)
         self.library_view.refresh_library()
         self.handheld_view.refresh()
+
+    def on_library_fs_changed(self):
+        """Triggered by background LibraryWatcher when any library file or playlist changes."""
+        self.after(0, self._handle_library_fs_update)
+
+    def _handle_library_fs_update(self):
+        try:
+            self.library_view.refresh_library()
+            self.browse_view.render_systems()
+        except Exception as e:
+            print(f"Error updating views after fs change: {e}")
 
     def show_banner(self, text: str, progress: float = 0.0):
         self.banner_frame.pack(fill="x", before=self.tabview)
@@ -157,7 +173,11 @@ class R36SyncApp(ctk.CTk):
         self.library_view.refresh_library()
         self.handheld_view.refresh()
 
-        # 2. Check if Minerva Archive should be scanned
+        # 2. Start live filesystem monitoring
+        library_watcher.subscribe(self.on_library_fs_changed)
+        library_watcher.start(settings.library_dir)
+
+        # 3. Check if Minerva Archive should be scanned
         total_cached = db.get_total_rom_count()
 
         if settings.auto_scan_on_launch or total_cached == 0:
@@ -192,3 +212,11 @@ class R36SyncApp(ctk.CTk):
         else:
             self.download_view._run_search()
             self.download_view.update_db_stat()
+
+    def _on_close(self):
+        """Clean shutdown handler."""
+        try:
+            library_watcher.stop()
+        except Exception:
+            pass
+        self.destroy()

@@ -265,6 +265,8 @@ class Settings:
         self.auto_scan_on_launch: bool = True
         self.auto_backup_saves: bool = True
         self.download_cover_art: bool = True
+        self.playlist_format: str = "m3a"
+        self.auto_create_playlists: bool = True
         self.theme: str = "Dark"
         self.load()
 
@@ -279,6 +281,8 @@ class Settings:
                     self.auto_scan_on_launch = data.get("auto_scan_on_launch", True)
                     self.auto_backup_saves = data.get("auto_backup_saves", True)
                     self.download_cover_art = data.get("download_cover_art", True)
+                    self.playlist_format = data.get("playlist_format", "m3a")
+                    self.auto_create_playlists = data.get("auto_create_playlists", True)
                     self.theme = data.get("theme", "Dark")
             except Exception as e:
                 print(f"Warning: Failed to load settings: {e}")
@@ -296,6 +300,8 @@ class Settings:
                 "auto_scan_on_launch": self.auto_scan_on_launch,
                 "auto_backup_saves": self.auto_backup_saves,
                 "download_cover_art": self.download_cover_art,
+                "playlist_format": self.playlist_format,
+                "auto_create_playlists": self.auto_create_playlists,
                 "theme": self.theme
             }
             with open(SETTINGS_FILE, "w", encoding="utf-8") as f:

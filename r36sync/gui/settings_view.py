@@ -92,7 +92,42 @@ class SettingsView(ctk.CTkFrame):
             command=self._save_settings
         ).pack(anchor="w", pady=6)
 
-        # 5. Appearance Theme
+        # Auto create / update multi-disc playlists
+        self.auto_m3a_var = ctk.BooleanVar(value=settings.auto_create_playlists)
+        ctk.CTkSwitch(
+            toggle_frame,
+            text="Automatically create & live-update multi-disc playlists when discs are downloaded or deleted",
+            variable=self.auto_m3a_var,
+            command=self._save_settings
+        ).pack(anchor="w", pady=6)
+
+        # 5. Multi-Disc Playlist Format Preference
+        m3a_frame = ctk.CTkFrame(container, fg_color="transparent")
+        m3a_frame.pack(fill="x", padx=14, pady=12)
+
+        ctk.CTkLabel(
+            m3a_frame,
+            text="Multi-Disc Playlist Format",
+            font=ctk.CTkFont(size=15, weight="bold")
+        ).pack(anchor="w", pady=(0, 2))
+
+        ctk.CTkLabel(
+            m3a_frame,
+            text="Default extension used when auto-creating multi-disc playlists (.m3a / .m3u)",
+            font=ctk.CTkFont(size=12),
+            text_color="gray60"
+        ).pack(anchor="w", pady=(0, 6))
+
+        self.format_dropdown = ctk.CTkOptionMenu(
+            m3a_frame,
+            values=[".m3a", ".m3u"],
+            command=lambda v: self._save_settings(),
+            width=140
+        )
+        self.format_dropdown.set(f".{settings.playlist_format.lstrip('.')}")
+        self.format_dropdown.pack(anchor="w", pady=4)
+
+        # 6. Appearance Theme
         theme_frame = ctk.CTkFrame(container, fg_color="transparent")
         theme_frame.pack(fill="x", padx=14, pady=12)
 
@@ -178,6 +213,9 @@ class SettingsView(ctk.CTkFrame):
         settings.auto_scan_on_launch = self.auto_scan_var.get()
         settings.auto_backup_saves = self.auto_backup_var.get()
         settings.download_cover_art = self.auto_cover_var.get()
+        settings.auto_create_playlists = self.auto_m3a_var.get()
+        fmt = self.format_dropdown.get().lstrip(".").lower()
+        settings.playlist_format = fmt if fmt in ["m3a", "m3u"] else "m3a"
         settings.save()
 
         if self.on_settings_changed:

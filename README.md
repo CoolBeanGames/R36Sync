@@ -34,9 +34,14 @@ A modern graphical desktop application for managing, downloading, and synchroniz
    - Evaluates signature console folders (`gb`, `gba`, `snes`, `nes`, `megadrive`, `psx`, `n64`, `bios`, etc.) and volume labels.
    - Includes a **"Setup Standard R36S Folders"** tool to prepare fresh SD cards with the complete ArkOS directory and `images/` hierarchy.
 
-5. **Multi-Disc Playlist Manager (.m3u / .m3a)**
-   - Automatically detects multi-disc games (e.g., `Final Fantasy VII (Disc 1).chd`, `(Disc 2).chd`, `(Disc 3).chd`) in your library.
-   - Generates `.m3u` or `.m3a` playlists with correct disc ordering.
+5. **Multi-Disc Playlist Manager & Live Updating (.m3a / .m3u)**
+   - **Real-time Live Updating**:
+     - **Disc 1 added**: Recognizes single disc without creating premature playlists.
+     - **Disc 2 added**: Automatically creates `game_name.m3a` containing Disc 1 & Disc 2.
+     - **Disc 3 added**: Automatically detects and adds Disc 3 to the existing `.m3a` in chronological order.
+     - **Disc 2 deleted**: Automatically strips the Disc 2 line from `game_name.m3a`, leaving remaining discs intact.
+     - **All discs deleted**: Cleanly deletes empty `.m3a` playlists and redundant thumbnails.
+   - Background **`LibraryWatcher`** (via `watchdog`) monitors filesystem events in real time, debouncing disk operations and live-updating the GUI whether changes happen inside R36Sync or externally in Windows Explorer.
    - Automatically duplicates Disc 1 cover art to `<playlist_name>-image.png` so the game displays box art in EmulationStation.
    - Hides cluttering individual disc entries in the Library and shows a clean single entry with a `[Multi-Disc: X Discs]` badge.
    - Synchronizes all referenced disc files to the R36S SD card under the single playlist entry and removes all discs cleanly upon unsync.
@@ -118,6 +123,7 @@ R36Sync/
 │   ├── cover_art.py            # Libretro box art fetcher and thumbnail cache
 │   ├── sd_detector.py          # Windows drive & ArkOS folder structure detection
 │   ├── m3u_manager.py          # Multi-disc detection and .m3u / .m3a playlist generator
+│   ├── library_watcher.py      # Real-time filesystem observer for auto-playlists & GUI updates
 │   ├── sync_manager.py         # Handheld sync/unsync and save backup engine
 │   ├── downloader.py           # Download queue with aria2c integration
 │   └── gui/

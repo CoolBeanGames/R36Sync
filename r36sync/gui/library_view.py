@@ -222,7 +222,20 @@ class LibraryView(ctk.CTkFrame):
         """Scans the local library directory and populates the list."""
         self.refresh_sd_card()
         sd_root = self.active_sd_info.roms_root if self.active_sd_info else None
+
+        # Preserve user checked states across refreshes
+        checked_states = {}
+        for key, var in self.check_vars.items():
+            checked_states[key] = var.get()
+
         self.games = sync_manager.scan_library(settings.library_dir, sd_root)
+
+        # Restore checked states
+        for game in self.games:
+            key = f"{game.console_code}:{game.file_name}"
+            if key in checked_states:
+                game.is_checked = checked_states[key]
+
         self.apply_filter()
 
     def on_console_filter_changed(self, selection: str):
@@ -397,13 +410,56 @@ class LibraryView(ctk.CTkFrame):
         art_btn = ctk.CTkButton(
             row,
             text="Art",
-            width=40,
+            width=36,
             height=26,
             fg_color=("gray75", "gray28"),
             hover_color=("gray65", "gray35"),
             command=lambda g=game: self.fetch_art_for_game(g)
         )
-        art_btn.pack(side="right", padx=4)
+        art_btn.pack(side="right", padx=2)
+
+        # Delete button
+        del_btn = ctk.CTkButton(
+            row,
+            text="🗑️",
+            width=32,
+            height=26,
+            fg_color=("gray75", "gray28"),
+            hover_color=("#b91c1c", "#991b1b"),
+            command=lambda g=game: self.delete_game_from_library(g)
+        )
+        del_btn.pack(side="right", padx=(2, 6))
+
+    def delete_game_from_library(self, game: LibraryGame):
+        import tkinter.messagebox as mb
+        msg = f"Delete '{game.stem}' from your local library?"
+        if game.is_playlist:
+            msg = f"Delete playlist '{game.stem}' and all its {game.disc_count} disc files from your library?"
+
+        if not mb.askyesno("Confirm Delete", msg):
+            return
+
+        try:
+            from ..m3u_manager import m3u_manager
+            if game.is_playlist:
+                discs = m3u_manager.parse_playlist_discs(game.file_path)
+                for d in discs:
+                    if d.exists():
+                        d.unlink()
+                if game.file_path.exists():
+                    game.file_path.unlink()
+                if game.cover_art_path and game.cover_art_path.exists():
+                    game.cover_art_path.unlink()
+            else:
+                if game.file_path.exists():
+                    game.file_path.unlink()
+                m3u_manager.handle_disc_file_removed(game.file_path)
+                if game.cover_art_path and game.cover_art_path.exists():
+                    game.cover_art_path.unlink()
+
+            self.refresh_library()
+        except Exception as e:
+            mb.showerror("Delete Failed", f"Could not delete game: {e}")
 
     def _get_ctk_thumb(self, path_str: str) -> Optional[ctk.CTkImage]:
         if path_str in self._thumb_cache:

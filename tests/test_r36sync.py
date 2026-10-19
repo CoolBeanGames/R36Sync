@@ -364,7 +364,109 @@ class TestR36Sync(unittest.TestCase):
         self.assertTrue((sd_psx / "Metal Gear Solid (USA) (Disc 1).chd").exists())
         self.assertTrue((sd_psx / "Metal Gear Solid (USA) (Disc 2).chd").exists())
 
+    def test_live_multidisc_lifecycle(self):
+        """
+        Tests user exact sequence:
+        1.) download game_1-disc_1
+        2.) download game_1-disc_2 -> creates game_1.m3a
+        3.) download game_1-disc_3 -> adds disc 3 to same game_1.m3a
+        4.) delete game_1-disc_2 -> deletes disc 2 entry from same game_1.m3a
+        """
+        from r36sync.m3u_manager import m3u_manager
+
+        psx_dir = self.library_dir / "psx"
+        psx_dir.mkdir(parents=True, exist_ok=True)
+
+        # 1.) Download game_1-disc_1
+        d1 = psx_dir / "game_1-disc_1.chd"
+        d1.write_bytes(b"DISC_1_BYTES")
+        res1 = m3u_manager.handle_disc_file_added(d1, preferred_ext=".m3a", console_code="psx")
+        self.assertIsNone(res1)
+        self.assertFalse((psx_dir / "game_1.m3a").exists())
+
+        # 2.) Download game_1-disc_2 -> creates game_1.m3a
+        d2 = psx_dir / "game_1-disc_2.chd"
+        d2.write_bytes(b"DISC_2_BYTES")
+        res2 = m3u_manager.handle_disc_file_added(d2, preferred_ext=".m3a", console_code="psx")
+        self.assertIsNotNone(res2)
+        m3a_path = psx_dir / "game_1.m3a"
+        self.assertTrue(m3a_path.exists())
+        lines2 = [l.strip() for l in m3a_path.read_text(encoding="utf-8").splitlines() if l.strip()]
+        self.assertEqual(lines2, ["game_1-disc_1.chd", "game_1-disc_2.chd"])
+
+        # 3.) Download game_1-disc_3 -> adds disc 3 to same game_1.m3a
+        d3 = psx_dir / "game_1-disc_3.chd"
+        d3.write_bytes(b"DISC_3_BYTES")
+        res3 = m3u_manager.handle_disc_file_added(d3, preferred_ext=".m3a", console_code="psx")
+        self.assertIsNotNone(res3)
+        lines3 = [l.strip() for l in m3a_path.read_text(encoding="utf-8").splitlines() if l.strip()]
+        self.assertEqual(lines3, ["game_1-disc_1.chd", "game_1-disc_2.chd", "game_1-disc_3.chd"])
+
+        # 4.) Delete game_1-disc_2 -> deletes disc 2 entry from same game_1.m3a
+        d2.unlink()
+        res4 = m3u_manager.handle_disc_file_removed(d2)
+        self.assertEqual(len(res4), 1)
+        self.assertEqual(res4[0], m3a_path)
+        lines4 = [l.strip() for l in m3a_path.read_text(encoding="utf-8").splitlines() if l.strip()]
+        self.assertEqual(lines4, ["game_1-disc_1.chd", "game_1-disc_3.chd"])
+
+        # 5.) Delete all remaining discs -> cleans up empty m3a
+        d1.unlink()
+        m3u_manager.handle_disc_file_removed(d1)
+        self.assertTrue(m3a_path.exists())
+
+        d3.unlink()
+        m3u_manager.handle_disc_file_removed(d3)
+        self.assertFalse(m3a_path.exists())
+
+    def test_library_watcher_live_updates(self):
+        """Tests that the background LibraryWatcher live detects file addition/deletion."""
+        import time
+        from r36sync.library_watcher import LibraryWatcher
+
+        watcher = LibraryWatcher(debounce_delay=0.1)
+        events = []
+        watcher.subscribe(lambda: events.append(time.time()))
+
+        psx_dir = self.library_dir / "psx_watcher_test"
+        psx_dir.mkdir(parents=True, exist_ok=True)
+
+        watcher.start(str(psx_dir))
+        try:
+            time.sleep(0.15)
+
+            # Add disc 1
+            w1 = psx_dir / "rpg_game-disc_1.chd"
+            w1.write_bytes(b"W1")
+            time.sleep(0.25)
+            self.assertFalse((psx_dir / "rpg_game.m3a").exists())
+
+            # Add disc 2 -> should auto-create rpg_game.m3a
+            w2 = psx_dir / "rpg_game-disc_2.chd"
+            w2.write_bytes(b"W2")
+            time.sleep(0.25)
+            m3a_file = psx_dir / "rpg_game.m3a"
+            self.assertTrue(m3a_file.exists())
+
+            # Add disc 3 -> should auto-append disc 3
+            w3 = psx_dir / "rpg_game-disc_3.chd"
+            w3.write_bytes(b"W3")
+            time.sleep(0.25)
+            lines = [l.strip() for l in m3a_file.read_text(encoding="utf-8").splitlines() if l.strip()]
+            self.assertEqual(lines, ["rpg_game-disc_1.chd", "rpg_game-disc_2.chd", "rpg_game-disc_3.chd"])
+
+            # Delete disc 2 -> should remove disc 2
+            w2.unlink()
+            time.sleep(0.25)
+            lines = [l.strip() for l in m3a_file.read_text(encoding="utf-8").splitlines() if l.strip()]
+            self.assertEqual(lines, ["rpg_game-disc_1.chd", "rpg_game-disc_3.chd"])
+
+            self.assertGreater(len(events), 0)
+        finally:
+            watcher.stop()
+
 
 if __name__ == "__main__":
     unittest.main()
+
 

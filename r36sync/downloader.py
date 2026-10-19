@@ -115,6 +115,14 @@ class Downloader:
                 if settings.download_cover_art and c_code and f_name:
                     cover_manager.download_cover_art(c_code, f_name)
 
+                # Live multi-disc update: automatically create or update .m3a/.m3u playlist
+                if task.dest_path and task.dest_path.exists():
+                    try:
+                        from .m3u_manager import m3u_manager
+                        m3u_manager.handle_disc_file_added(task.dest_path, console_code=c_code)
+                    except Exception as e:
+                        print(f"Error updating playlist for downloaded disc {task.dest_path.name}: {e}")
+
                 task.status = "Completed"
                 task.progress = 1.0
 
