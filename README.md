@@ -18,22 +18,16 @@ A modern graphical desktop application for managing, downloading, and synchroniz
    - Interactive checkboxes: Games already present on your R36S handheld appear checked automatically.
    - Quick filtering by search term and console, plus delete button for local cleanup.
 
-3. **Browse View (Browse by System -> Expand by Game)**
+3. **Browse & Search View (Unified Catalog & Filter)**
    - Visual catalog of all 22+ retro systems with badges, game counts, and library indicators.
-   - Click into any system to expand and browse all its games.
-   - Displays region and language information for each game.
-   - Quick A-Z alphabetical jumper bar (`#`, `A`, `B`, `C` ... `Z`) to jump directly to any letter.
-   - One-click downloads with real-time Libretro cover art fetching.
-
-4. **Download Manager & Search**
-   - Instant search across 40,000+ indexed ROMs with console filtering.
-   - Displays **Region and Language** on the second line between the system name and storage space (`System • Region • Lang • Storage Size`).
-   - **Automatic Unzip & Delete**: When an archive (`.zip`) is downloaded, it automatically extracts the ROM(s) into your library and deletes the `.zip` file.
+   - Click into any system to expand and browse all its games with alphabetical A-Z jumper bar (`#`, `A`, `B`, `C` ... `Z`).
+   - **Unified Search as a Filter**: Type any game name (e.g. *Thousand Arms*, *Mario*, *Pokemon*) to instantly search across the entire Minerva Archive or within a selected system.
+   - Second-line metadata formatting: `Console • Disc: <num> • Region: <region> • Lang: <lang> • <size>`.
+   - **1-Click Downloads with Auto-Unzip**: Queues high-speed downloads directly to PC library, automatically extracts `.zip` archives, and removes compressed files.
    - Automatically fetches high-resolution box art from the official Libretro thumbnail database.
-   - Built-in high-speed `aria2c` downloader supporting BitTorrent file extraction.
-   - Options to save `.torrent` files or launch magnet links in default torrent clients (e.g., qBittorrent).
+   - Options to save `.torrent` files or launch magnet links in default torrent clients.
 
-5. **R36S Handheld Tab (Games on SD Card & Diagnostics)**
+4. **R36S Handheld Tab (Games on SD Card & Diagnostics)**
    - Shows all **games installed on the R36S SD card** across all retro consoles, with box art, sizes, and PC library status.
    - Easily search and filter games installed on the handheld.
    - 1-click **"Import to PC"** to copy games from the handheld to your PC library.
@@ -136,8 +130,7 @@ R36Sync/
 │   └── gui/
 │       ├── app.py              # Main CustomTkinter application window
 │       ├── library_view.py     # Main Page: Library listing & sync checkboxes
-│       ├── browse_view.py      # Browse Tab: Browse by System -> Expand by Game
-│       ├── download_view.py    # Download Tab: Searchable Minerva catalog
+│       ├── browse_view.py      # Browse & Search: System browser & instant archive search
 │       ├── multidisc_dialog.py # Multi-Disc (.m3u / .m3a) modal manager & creator
 │       ├── handheld_view.py    # SD Card & Sync Tab: Hardware & saves manager
 │       ├── scanner_view.py     # Minerva Database Tab: Indexing coverage

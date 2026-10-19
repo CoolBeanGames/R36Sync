@@ -546,9 +546,223 @@ class TestR36Sync(unittest.TestCase):
         self.assertIsNone(parse_rom_disc_number("Super Mario 64 (USA).z64"))
         self.assertIsNone(parse_rom_disc_number("Pokemon Emerald (USA, Europe).gba"))
 
+    def test_library_filtering_and_sorting_logic(self):
+        from r36sync.sync_manager import LibraryGame
+
+        # Create sample game objects
+        g_zelda = LibraryGame(
+            file_path=Path("gba/Zelda.gba"),
+            file_name="Zelda.gba",
+            stem="Zelda",
+            console_code="gba",
+            console_name="Game Boy Advance",
+            size_bytes=10 * 1024 * 1024,
+            has_cover_art=False,
+            cover_art_path=None,
+            is_on_handheld=True,
+            is_checked=True,
+            is_on_pc=True,
+            is_playlist=False,
+            disc_count=1
+        )
+        g_mario = LibraryGame(
+            file_path=Path("snes/Mario.sfc"),
+            file_name="Mario.sfc",
+            stem="Mario",
+            console_code="snes",
+            console_name="Super Nintendo",
+            size_bytes=50 * 1024 * 1024,
+            has_cover_art=False,
+            cover_art_path=None,
+            is_on_handheld=True,
+            is_checked=False,
+            is_on_pc=True,
+            is_playlist=False,
+            disc_count=1
+        )
+        g_arms = LibraryGame(
+            file_path=Path("psx/Thousand Arms.m3u"),
+            file_name="Thousand Arms.m3u",
+            stem="Thousand Arms",
+            console_code="psx",
+            console_name="Sony PlayStation",
+            size_bytes=500 * 1024 * 1024,
+            has_cover_art=False,
+            cover_art_path=None,
+            is_on_handheld=False,
+            is_checked=True,
+            is_on_pc=True,
+            is_playlist=True,
+            disc_count=2
+        )
+        g_tetris = LibraryGame(
+            file_path=Path("gb/Tetris.gb"),
+            file_name="Tetris.gb",
+            stem="Tetris",
+            console_code="gb",
+            console_name="Game Boy",
+            size_bytes=5 * 1024 * 1024,
+            has_cover_art=False,
+            cover_art_path=None,
+            is_on_handheld=True,
+            is_checked=False,
+            is_on_pc=False,
+            is_playlist=False,
+            disc_count=1
+        )
+
+        all_games = [g_zelda, g_mario, g_arms, g_tetris]
+
+        def filter_games(games, check_sel="All Checks", sync_sel="All Sync", type_sel="All Types", sort_sel="Sort: Title (A-Z)"):
+            res = []
+            for g in games:
+                if check_sel == "Checked" and not g.is_checked:
+                    continue
+                elif check_sel == "Unchecked" and g.is_checked:
+                    continue
+
+                if sync_sel == "Synced" and not (g.is_on_handheld and g.is_on_pc):
+                    continue
+                elif sync_sel == "Not Synced" and (g.is_on_handheld and g.is_on_pc):
+                    continue
+
+                if type_sel == "Library Only" and (not g.is_on_pc or g.is_on_handheld):
+                    continue
+                elif type_sel == "SD Card Only" and (not g.is_on_handheld or g.is_on_pc):
+                    continue
+                elif type_sel == "Multi-Disc Only" and not (g.is_playlist or g.disc_count > 1):
+                    continue
+                elif type_sel == "Single Disc Only" and (g.is_playlist or g.disc_count > 1):
+                    continue
+                res.append(g)
+
+            if sort_sel == "Sort: Title (A-Z)":
+                res.sort(key=lambda g: g.stem.lower())
+            elif sort_sel == "Sort: Title (Z-A)":
+                res.sort(key=lambda g: g.stem.lower(), reverse=True)
+            elif sort_sel == "Sort: Size (Largest)":
+                res.sort(key=lambda g: g.size_bytes, reverse=True)
+            elif sort_sel == "Sort: Size (Smallest)":
+                res.sort(key=lambda g: g.size_bytes)
+            elif sort_sel == "Sort: Platform (A-Z)":
+                res.sort(key=lambda g: (g.console_name, g.stem.lower()))
+            return res
+
+        # 1. Check combinations
+        self.assertEqual([g.stem for g in filter_games(all_games, check_sel="Checked")], ["Thousand Arms", "Zelda"])
+        self.assertEqual([g.stem for g in filter_games(all_games, check_sel="Unchecked")], ["Mario", "Tetris"])
+
+        # 2. Sync combinations
+        self.assertEqual([g.stem for g in filter_games(all_games, sync_sel="Synced")], ["Mario", "Zelda"])
+        self.assertEqual([g.stem for g in filter_games(all_games, sync_sel="Not Synced")], ["Tetris", "Thousand Arms"])
+
+        # 3. Combo: Checked + Synced
+        self.assertEqual([g.stem for g in filter_games(all_games, check_sel="Checked", sync_sel="Synced")], ["Zelda"])
+
+        # 4. Combo: Checked + Not Synced
+        self.assertEqual([g.stem for g in filter_games(all_games, check_sel="Checked", sync_sel="Not Synced")], ["Thousand Arms"])
+
+        # 5. Combo: Unchecked + Synced
+        self.assertEqual([g.stem for g in filter_games(all_games, check_sel="Unchecked", sync_sel="Synced")], ["Mario"])
+
+        # 6. Combo: Unchecked + Not Synced
+        self.assertEqual([g.stem for g in filter_games(all_games, check_sel="Unchecked", sync_sel="Not Synced")], ["Tetris"])
+
+        # 7. Types
+        self.assertEqual([g.stem for g in filter_games(all_games, type_sel="Library Only")], ["Thousand Arms"])
+        self.assertEqual([g.stem for g in filter_games(all_games, type_sel="SD Card Only")], ["Tetris"])
+        self.assertEqual([g.stem for g in filter_games(all_games, type_sel="Multi-Disc Only")], ["Thousand Arms"])
+        self.assertEqual([g.stem for g in filter_games(all_games, type_sel="Single Disc Only")], ["Mario", "Tetris", "Zelda"])
+
+        # 8. Sorting
+        self.assertEqual([g.stem for g in filter_games(all_games, sort_sel="Sort: Title (A-Z)")], ["Mario", "Tetris", "Thousand Arms", "Zelda"])
+        self.assertEqual([g.stem for g in filter_games(all_games, sort_sel="Sort: Title (Z-A)")], ["Zelda", "Thousand Arms", "Tetris", "Mario"])
+        self.assertEqual([g.stem for g in filter_games(all_games, sort_sel="Sort: Size (Largest)")], ["Thousand Arms", "Mario", "Zelda", "Tetris"])
+        self.assertEqual([g.stem for g in filter_games(all_games, sort_sel="Sort: Size (Smallest)")], ["Tetris", "Zelda", "Mario", "Thousand Arms"])
+        self.assertEqual([g.stem for g in filter_games(all_games, sort_sel="Sort: Platform (A-Z)")], ["Tetris", "Zelda", "Thousand Arms", "Mario"])
+
+    def test_browse_search_filter_queries(self):
+        # Insert test roms with disc numbers across consoles
+        test_roms = [
+            {
+                "minerva_id": "psx_ta1",
+                "title": "Thousand Arms (USA) (Disc 1)",
+                "clean_title": "Thousand Arms",
+                "file_name": "Thousand Arms (USA) (Disc 1).zip",
+                "console_code": "psx",
+                "console_name": "Sony PlayStation",
+                "group_name": "Redump",
+                "size_str": "500 MB",
+                "torrent_url": "https://minerva-archive.org/psx/1.torrent",
+                "magnet_url": "magnet:?xt=1",
+                "rom_url": "https://minerva-archive.org/psx/1",
+                "torrent_file_idx": 0
+            },
+            {
+                "minerva_id": "psx_ta2",
+                "title": "Thousand Arms (USA) (Disc 2)",
+                "clean_title": "Thousand Arms",
+                "file_name": "Thousand Arms (USA) (Disc 2).zip",
+                "console_code": "psx",
+                "console_name": "Sony PlayStation",
+                "group_name": "Redump",
+                "size_str": "500 MB",
+                "torrent_url": "https://minerva-archive.org/psx/2.torrent",
+                "magnet_url": "magnet:?xt=2",
+                "rom_url": "https://minerva-archive.org/psx/2",
+                "torrent_file_idx": 1
+            },
+            {
+                "minerva_id": "gba_mario",
+                "title": "Super Mario Advance",
+                "clean_title": "Super Mario Advance",
+                "file_name": "Super Mario Advance.zip",
+                "console_code": "gba",
+                "console_name": "Game Boy Advance",
+                "group_name": "No-Intro",
+                "size_str": "8 MB",
+                "torrent_url": "https://minerva-archive.org/gba/mario.torrent",
+                "magnet_url": "magnet:?xt=3",
+                "rom_url": "https://minerva-archive.org/gba/mario",
+                "torrent_file_idx": 0
+            },
+            {
+                "minerva_id": "snes_world",
+                "title": "Super Mario World",
+                "clean_title": "Super Mario World",
+                "file_name": "Super Mario World.zip",
+                "console_code": "snes",
+                "console_name": "Super Nintendo",
+                "group_name": "No-Intro",
+                "size_str": "2 MB",
+                "torrent_url": "https://minerva-archive.org/snes/world.torrent",
+                "magnet_url": "magnet:?xt=4",
+                "rom_url": "https://minerva-archive.org/snes/world",
+                "torrent_file_idx": 0
+            }
+        ]
+        self.db.upsert_roms(test_roms)
+
+        from r36sync.database import parse_rom_disc_number
+
+        # Search across all consoles for "Thousand Arms"
+        results = self.db.search_roms("Thousand Arms", console_code=None)
+        self.assertEqual(len(results), 2)
+        disc_nums = [parse_rom_disc_number(r["file_name"]) for r in results]
+        self.assertEqual(disc_nums, ["1", "2"])
+
+        # Search with console filter: Mario across all vs Mario in SNES
+        all_mario = self.db.search_roms("Mario", console_code=None)
+        self.assertEqual(len(all_mario), 2)
+
+        snes_mario = self.db.search_roms("Mario", console_code="snes")
+        self.assertEqual(len(snes_mario), 1)
+        self.assertEqual(snes_mario[0]["file_name"], "Super Mario World.zip")
+
 
 if __name__ == "__main__":
     unittest.main()
+
 
 
 

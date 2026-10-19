@@ -160,21 +160,68 @@ class LibraryView(ctk.CTkFrame):
 
         self.search_entry = ctk.CTkEntry(
             filter_row,
-            placeholder_text="Filter library games...",
-            width=280,
-            height=32
+            placeholder_text="Search games...",
+            width=180,
+            height=30
         )
-        self.search_entry.pack(side="left", padx=(0, 8))
+        self.search_entry.pack(side="left", padx=(0, 6))
         self.search_entry.bind("<KeyRelease>", lambda e: self.apply_filter())
 
         self.console_dropdown = ctk.CTkOptionMenu(
             filter_row,
             values=["All Consoles"] + [c.display_name for c in CONSOLES.values()],
-            command=self.on_console_filter_changed,
-            width=220,
-            height=32
+            command=self.on_filter_changed,
+            width=165,
+            height=30
         )
-        self.console_dropdown.pack(side="left", padx=4)
+        self.console_dropdown.pack(side="left", padx=3)
+
+        self.check_dropdown = ctk.CTkOptionMenu(
+            filter_row,
+            values=["All Checks", "Checked", "Unchecked"],
+            command=self.on_filter_changed,
+            width=110,
+            height=30
+        )
+        self.check_dropdown.pack(side="left", padx=3)
+
+        self.sync_dropdown = ctk.CTkOptionMenu(
+            filter_row,
+            values=["All Sync", "Synced", "Not Synced"],
+            command=self.on_filter_changed,
+            width=110,
+            height=30
+        )
+        self.sync_dropdown.pack(side="left", padx=3)
+
+        self.type_dropdown = ctk.CTkOptionMenu(
+            filter_row,
+            values=["All Types", "Library Only", "SD Card Only", "Multi-Disc Only", "Single Disc Only"],
+            command=self.on_filter_changed,
+            width=135,
+            height=30
+        )
+        self.type_dropdown.pack(side="left", padx=3)
+
+        self.sort_dropdown = ctk.CTkOptionMenu(
+            filter_row,
+            values=["Sort: Title (A-Z)", "Sort: Title (Z-A)", "Sort: Size (Largest)", "Sort: Size (Smallest)", "Sort: Platform (A-Z)"],
+            command=self.on_filter_changed,
+            width=150,
+            height=30
+        )
+        self.sort_dropdown.pack(side="left", padx=3)
+
+        self.reset_filter_btn = ctk.CTkButton(
+            filter_row,
+            text="Reset",
+            width=55,
+            height=30,
+            fg_color=("gray75", "gray28"),
+            hover_color=("gray65", "gray35"),
+            command=self.reset_filters
+        )
+        self.reset_filter_btn.pack(side="left", padx=3)
 
         # 3. Pagination & Navigation Bar
         nav_row = ctk.CTkFrame(self, fg_color="transparent")
@@ -286,28 +333,80 @@ class LibraryView(ctk.CTkFrame):
 
         self.apply_filter()
 
-    def on_console_filter_changed(self, selection: str):
-        if selection == "All Consoles":
-            self.selected_console_filter = "all"
-        else:
-            for code, c_def in CONSOLES.items():
-                if c_def.display_name == selection:
-                    self.selected_console_filter = code
-                    break
+    def on_filter_changed(self, _=None):
+        self.apply_filter()
+
+    def reset_filters(self):
+        self.search_entry.delete(0, "end")
+        self.console_dropdown.set("All Consoles")
+        self.check_dropdown.set("All Checks")
+        self.sync_dropdown.set("All Sync")
+        self.type_dropdown.set("All Types")
+        self.sort_dropdown.set("Sort: Title (A-Z)")
         self.apply_filter()
 
     def apply_filter(self):
         query = self.search_entry.get().strip().lower()
+        console_sel = self.console_dropdown.get() if hasattr(self, "console_dropdown") else "All Consoles"
+        check_sel = self.check_dropdown.get() if hasattr(self, "check_dropdown") else "All Checks"
+        sync_sel = self.sync_dropdown.get() if hasattr(self, "sync_dropdown") else "All Sync"
+        type_sel = self.type_dropdown.get() if hasattr(self, "type_dropdown") else "All Types"
+        sort_sel = self.sort_dropdown.get() if hasattr(self, "sort_dropdown") else "Sort: Title (A-Z)"
+
+        # Resolve console filter
+        selected_code = "all"
+        if console_sel != "All Consoles":
+            for code, c_def in CONSOLES.items():
+                if c_def.display_name == console_sel:
+                    selected_code = code
+                    break
+
         self.filtered_games = []
 
         for game in self.games:
-            # Console filter
-            if self.selected_console_filter != "all" and game.console_code != self.selected_console_filter:
+            # 1. Console filter
+            if selected_code != "all" and game.console_code != selected_code:
                 continue
-            # Search query
+
+            # 2. Search query filter
             if query and query not in game.file_name.lower() and query not in game.stem.lower():
                 continue
+
+            # 3. Check status filter (checked / unchecked)
+            if check_sel == "Checked" and not game.is_checked:
+                continue
+            elif check_sel == "Unchecked" and game.is_checked:
+                continue
+
+            # 4. Handheld Sync status filter (synced / not synced)
+            if sync_sel == "Synced" and not (game.is_on_handheld and game.is_on_pc):
+                continue
+            elif sync_sel == "Not Synced" and (game.is_on_handheld and game.is_on_pc):
+                continue
+
+            # 5. Type / Location filter (SD card only, library only, multi-disc only, single disc only)
+            if type_sel == "Library Only" and (not game.is_on_pc or game.is_on_handheld):
+                continue
+            elif type_sel == "SD Card Only" and (not game.is_on_handheld or game.is_on_pc):
+                continue
+            elif type_sel == "Multi-Disc Only" and not (game.is_playlist or game.disc_count > 1):
+                continue
+            elif type_sel == "Single Disc Only" and (game.is_playlist or game.disc_count > 1):
+                continue
+
             self.filtered_games.append(game)
+
+        # 5. Sorting (Title, Size, Platform)
+        if sort_sel == "Sort: Title (A-Z)":
+            self.filtered_games.sort(key=lambda g: g.stem.lower())
+        elif sort_sel == "Sort: Title (Z-A)":
+            self.filtered_games.sort(key=lambda g: g.stem.lower(), reverse=True)
+        elif sort_sel == "Sort: Size (Largest)":
+            self.filtered_games.sort(key=lambda g: g.size_bytes, reverse=True)
+        elif sort_sel == "Sort: Size (Smallest)":
+            self.filtered_games.sort(key=lambda g: g.size_bytes)
+        elif sort_sel == "Sort: Platform (A-Z)":
+            self.filtered_games.sort(key=lambda g: (g.console_name, g.stem.lower()))
 
         self.current_page = 0
         self._render_games()
@@ -353,7 +452,7 @@ class LibraryView(ctk.CTkFrame):
             if not self.games:
                 ctk.CTkLabel(
                     empty_box,
-                    text="Go to the Download tab to search and download games from Minerva Archive,\nor drop your ROM files into your Library folder.",
+                    text="Go to the Browse tab to search and download games from Minerva Archive,\nor drop your ROM files into your Library folder.",
                     font=ctk.CTkFont(size=13),
                     text_color="gray50"
                 ).pack(pady=4)
@@ -364,20 +463,11 @@ class LibraryView(ctk.CTkFrame):
                 if self.on_switch_to_browse:
                     ctk.CTkButton(
                         btn_row,
-                        text="Browse by System",
+                        text="Browse & Search Archive",
                         font=ctk.CTkFont(size=13, weight="bold"),
                         fg_color="#4f46e5",
                         hover_color="#4338ca",
                         command=self.on_switch_to_browse
-                    ).pack(side="left", padx=6)
-
-                if self.on_switch_to_download:
-                    ctk.CTkButton(
-                        btn_row,
-                        text="Search Archive",
-                        font=ctk.CTkFont(size=13, weight="bold"),
-                        fg_color="#3b82f6",
-                        command=self.on_switch_to_download
                     ).pack(side="left", padx=6)
             return
 
@@ -518,6 +608,14 @@ class LibraryView(ctk.CTkFrame):
             anchor="w"
         )
         sub_lbl.pack(fill="x")
+
+        # Double-click anywhere on row to toggle check/uncheck
+        def on_double_click(event=None):
+            var.set(not var.get())
+            on_toggle()
+
+        for w in (row, thumb_label, info_frame, title_lbl, sub_lbl, badge):
+            w.bind("<Double-Button-1>", on_double_click)
 
     def import_game_to_pc(self, game: LibraryGame):
         import tkinter.messagebox as mb

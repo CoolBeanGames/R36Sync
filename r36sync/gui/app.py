@@ -12,7 +12,6 @@ from ..library_watcher import library_watcher
 from ..minerva_scanner import scanner
 from .library_view import LibraryView
 from .browse_view import BrowseView
-from .download_view import DownloadView
 from .handheld_view import HandheldView
 from .scanner_view import ScannerView
 from .settings_view import SettingsView
@@ -73,7 +72,6 @@ class R36SyncApp(ctk.CTk):
         # Create Tabs
         self.tab_library = self.tabview.add("Library")
         self.tab_browse = self.tabview.add("Browse")
-        self.tab_download = self.tabview.add("Download")
         self.tab_handheld = self.tabview.add("SD Card & Sync")
         self.tab_scanner = self.tabview.add("Minerva Database")
         self.tab_settings = self.tabview.add("Settings")
@@ -97,13 +95,6 @@ class R36SyncApp(ctk.CTk):
             on_download_completed=self.on_download_completed
         )
         self.browse_view.pack(fill="both", expand=True)
-
-        self.download_view = DownloadView(
-            self.tab_download,
-            on_download_completed=self.on_download_completed,
-            on_switch_to_browse=self.switch_to_browse_tab
-        )
-        self.download_view.pack(fill="both", expand=True)
 
         self.handheld_view = HandheldView(
             self.tab_handheld,
@@ -132,9 +123,6 @@ class R36SyncApp(ctk.CTk):
         elif curr == "Browse":
             if hasattr(self.browse_view, "on_tab_activated"):
                 self.browse_view.on_tab_activated()
-        elif curr == "Download":
-            if hasattr(self.download_view, "on_tab_activated"):
-                self.download_view.on_tab_activated()
         elif curr == "SD Card & Sync":
             if hasattr(self.handheld_view, "on_tab_activated"):
                 self.handheld_view.on_tab_activated()
@@ -143,14 +131,18 @@ class R36SyncApp(ctk.CTk):
                 self.scanner_view.on_tab_activated()
 
     def switch_to_download_tab(self):
-        """Switches UI to the Download tab."""
-        self.tabview.set("Download")
+        """Switches UI to Browse tab with Search Archive activated."""
+        self.tabview.set("Browse")
         self._on_tab_changed()
+        if hasattr(self.browse_view, "activate_search_mode"):
+            self.browse_view.activate_search_mode()
 
     def switch_to_browse_tab(self):
         """Switches UI to the Browse tab."""
         self.tabview.set("Browse")
         self._on_tab_changed()
+        if hasattr(self.browse_view, "show_systems_view"):
+            self.browse_view.show_systems_view()
 
     def on_download_completed(self):
         """Called when a game download finishes; refreshes library and browse."""
@@ -164,15 +156,11 @@ class R36SyncApp(ctk.CTk):
         """Called when Minerva database scan adds games."""
         curr = self.tabview.get()
         if curr == "Browse":
-            self.browse_view.render_systems()
+            self.browse_view.update_db_stat()
+            if hasattr(self.browse_view, "render_systems"):
+                self.browse_view.render_systems()
         else:
             self.browse_view._has_loaded = False
-
-        if curr == "Download":
-            self.download_view._run_search()
-            self.download_view.update_db_stat()
-        else:
-            self.download_view._has_loaded = False
 
         if curr == "Minerva Database":
             self.scanner_view.refresh_stats()
@@ -240,7 +228,7 @@ class R36SyncApp(ctk.CTk):
                 self.after(0, lambda: [
                     self.show_banner(f"Scanning Minerva Archive: {msg} ({int(frac * 100)}%)", frac),
                     self.scanner_view.refresh_stats() if self.tabview.get() == "Minerva Database" else None,
-                    self.download_view.update_db_stat() if self.tabview.get() == "Download" else None
+                    self.browse_view.update_db_stat() if self.tabview.get() == "Browse" else None
                 ])
 
             def on_complete(total_added):
@@ -270,7 +258,7 @@ class R36SyncApp(ctk.CTk):
                 self.after(0, lambda: [
                     self.show_banner(f"Updating Minerva Archive: {msg} ({int(frac * 100)}%)", frac),
                     self.scanner_view.refresh_stats() if self.tabview.get() == "Minerva Database" else None,
-                    self.download_view.update_db_stat() if self.tabview.get() == "Download" else None
+                    self.browse_view.update_db_stat() if self.tabview.get() == "Browse" else None
                 ])
 
             def on_complete(total_added):
