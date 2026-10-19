@@ -19,9 +19,10 @@ from ..sync_manager import sync_manager, LibraryGame, SyncResult
 class LibraryView(ctk.CTkFrame):
     """The Main Page: Displays local library games and manages R36S handheld sync."""
 
-    def __init__(self, master, on_switch_to_download=None, **kwargs):
+    def __init__(self, master, on_switch_to_download=None, on_switch_to_browse=None, **kwargs):
         super().__init__(master, **kwargs)
         self.on_switch_to_download = on_switch_to_download
+        self.on_switch_to_browse = on_switch_to_browse
         self.games: List[LibraryGame] = []
         self.filtered_games: List[LibraryGame] = []
         self.active_sd_info: Optional[SDCardInfo] = None
@@ -113,6 +114,18 @@ class LibraryView(ctk.CTkFrame):
             command=self.refresh_library
         )
         self.refresh_lib_btn.pack(side="left", padx=4)
+
+        if self.on_switch_to_browse:
+            self.browse_systems_btn = ctk.CTkButton(
+                action_row,
+                text="Browse Systems",
+                width=110,
+                height=30,
+                fg_color="#4f46e5",
+                hover_color="#4338ca",
+                command=self.on_switch_to_browse
+            )
+            self.browse_systems_btn.pack(side="left", padx=4)
 
         self.open_folder_btn = ctk.CTkButton(
             action_row,
@@ -257,14 +270,27 @@ class LibraryView(ctk.CTkFrame):
                     text_color="gray50"
                 ).pack(pady=4)
 
+                btn_row = ctk.CTkFrame(empty_box, fg_color="transparent")
+                btn_row.pack(pady=12)
+
+                if self.on_switch_to_browse:
+                    ctk.CTkButton(
+                        btn_row,
+                        text="Browse by System",
+                        font=ctk.CTkFont(size=13, weight="bold"),
+                        fg_color="#4f46e5",
+                        hover_color="#4338ca",
+                        command=self.on_switch_to_browse
+                    ).pack(side="left", padx=6)
+
                 if self.on_switch_to_download:
                     ctk.CTkButton(
-                        empty_box,
-                        text="Go to Download Tab",
+                        btn_row,
+                        text="Search Archive",
                         font=ctk.CTkFont(size=13, weight="bold"),
                         fg_color="#3b82f6",
                         command=self.on_switch_to_download
-                    ).pack(pady=12)
+                    ).pack(side="left", padx=6)
             return
 
         for game in self.filtered_games:

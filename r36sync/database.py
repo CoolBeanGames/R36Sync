@@ -73,6 +73,7 @@ class Database:
             c.execute("CREATE INDEX IF NOT EXISTS idx_roms_search ON roms(clean_title, console_code);")
             c.execute("CREATE INDEX IF NOT EXISTS idx_roms_filename ON roms(file_name);")
             c.execute("CREATE INDEX IF NOT EXISTS idx_roms_console ON roms(console_code);")
+            c.execute("CREATE INDEX IF NOT EXISTS idx_roms_console_title ON roms(console_code, clean_title);")
             c.execute("CREATE INDEX IF NOT EXISTS idx_saves_console ON save_backups(console_code);")
             conn.commit()
 
@@ -207,6 +208,87 @@ class Database:
             ORDER BY count DESC
             """)
             return [dict(row) for row in c.fetchall()]
+
+    def get_console_letters(self, console_code: str) -> List[str]:
+        """Returns list of starting letters/digits available for a console."""
+        with self.get_connection() as conn:
+            c = conn.cursor()
+            c.execute("""
+            SELECT DISTINCT UPPER(SUBSTR(clean_title, 1, 1)) as letter
+            FROM roms
+            WHERE console_code = ?
+            ORDER BY letter ASC
+            """, (console_code,))
+            letters = [r[0] for r in c.fetchall() if r[0]]
+            return letters
+
+    def get_games_by_console(
+        self,
+        console_code: str,
+        letter: Optional[str] = None,
+        search: Optional[str] = None,
+        limit: int = 50,
+        offset: int = 0
+    ) -> List[Dict[str, Any]]:
+        """Queries games for a specific console with optional letter and search filters."""
+        with self.get_connection() as conn:
+            c = conn.cursor()
+            conditions = ["console_code = ?"]
+            params: List[Any] = [console_code]
+
+            if letter and letter != "ALL":
+                if letter == "#":
+                    conditions.append("(SUBSTR(clean_title, 1, 1) GLOB '[0-9]*' OR SUBSTR(clean_title, 1, 1) NOT GLOB '[A-Za-z]*')")
+                else:
+                    conditions.append("clean_title LIKE ?")
+                    params.append(f"{letter}%")
+
+            if search:
+                words = search.strip().split()
+                for word in words:
+                    conditions.append("(clean_title LIKE ? OR file_name LIKE ?)")
+                    params.extend([f"%{word}%", f"%{word}%"])
+
+            where_clause = "WHERE " + " AND ".join(conditions)
+            sql = f"""
+            SELECT * FROM roms
+            {where_clause}
+            ORDER BY clean_title ASC
+            LIMIT ? OFFSET ?
+            """
+            params.extend([limit, offset])
+            c.execute(sql, params)
+            return [dict(row) for row in c.fetchall()]
+
+    def count_games_by_console(
+        self,
+        console_code: str,
+        letter: Optional[str] = None,
+        search: Optional[str] = None
+    ) -> int:
+        """Counts games matching browse criteria for a console."""
+        with self.get_connection() as conn:
+            c = conn.cursor()
+            conditions = ["console_code = ?"]
+            params: List[Any] = [console_code]
+
+            if letter and letter != "ALL":
+                if letter == "#":
+                    conditions.append("(SUBSTR(clean_title, 1, 1) GLOB '[0-9]*' OR SUBSTR(clean_title, 1, 1) NOT GLOB '[A-Za-z]*')")
+                else:
+                    conditions.append("clean_title LIKE ?")
+                    params.append(f"{letter}%")
+
+            if search:
+                words = search.strip().split()
+                for word in words:
+                    conditions.append("(clean_title LIKE ? OR file_name LIKE ?)")
+                    params.extend([f"%{word}%", f"%{word}%"])
+
+            where_clause = "WHERE " + " AND ".join(conditions)
+            sql = f"SELECT COUNT(*) FROM roms {where_clause}"
+            c.execute(sql, params)
+            return c.fetchone()[0]
 
     def record_save_backup(
         self,

@@ -17,8 +17,14 @@ A modern graphical desktop application for managing, downloading, and synchroniz
    - Interactive checkboxes: Games already present on your R36S handheld appear checked automatically.
    - Quick filtering by search term and console.
 
-3. **Download Manager & Cover Art Scraper**
-   - Instant search across 25,000+ indexed ROMs with console filtering.
+3. **Browse View (Browse by System -> Expand by Game)**
+   - Visual catalog of all 22+ retro systems with badges, game counts, and library indicators.
+   - Click into any system to expand and browse all its games.
+   - Quick A-Z alphabetical jumper bar (`#`, `A`, `B`, `C` ... `Z`) to jump directly to any letter.
+   - One-click downloads with real-time Libretro cover art fetching.
+
+4. **Download Manager & Search**
+   - Instant search across 40,000+ indexed ROMs with console filtering.
    - One-click **"Download to Library"**: Downloads the ROM and automatically fetches high-resolution box art from the official Libretro thumbnail database.
    - Built-in high-speed `aria2c` downloader supporting BitTorrent file extraction.
    - Options to save `.torrent` files or launch magnet links in default torrent clients (e.g., qBittorrent).
@@ -108,6 +114,7 @@ R36Sync/
 │   └── gui/
 │       ├── app.py              # Main CustomTkinter application window
 │       ├── library_view.py     # Main Page: Library listing & sync checkboxes
+│       ├── browse_view.py      # Browse Tab: Browse by System -> Expand by Game
 │       ├── download_view.py    # Download Tab: Searchable Minerva catalog
 │       ├── handheld_view.py    # SD Card & Sync Tab: Hardware & saves manager
 │       ├── scanner_view.py     # Minerva Database Tab: Indexing coverage

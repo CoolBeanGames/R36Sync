@@ -10,6 +10,7 @@ from ..config import settings
 from ..database import db
 from ..minerva_scanner import scanner
 from .library_view import LibraryView
+from .browse_view import BrowseView
 from .download_view import DownloadView
 from .handheld_view import HandheldView
 from .scanner_view import ScannerView
@@ -66,6 +67,7 @@ class R36SyncApp(ctk.CTk):
 
         # Create Tabs
         self.tab_library = self.tabview.add("Library")
+        self.tab_browse = self.tabview.add("Browse")
         self.tab_download = self.tabview.add("Download")
         self.tab_handheld = self.tabview.add("SD Card & Sync")
         self.tab_scanner = self.tabview.add("Minerva Database")
@@ -80,13 +82,21 @@ class R36SyncApp(ctk.CTk):
         # Instantiate View Frames inside Tabs
         self.library_view = LibraryView(
             self.tab_library,
-            on_switch_to_download=self.switch_to_download_tab
+            on_switch_to_download=self.switch_to_download_tab,
+            on_switch_to_browse=self.switch_to_browse_tab
         )
         self.library_view.pack(fill="both", expand=True)
 
+        self.browse_view = BrowseView(
+            self.tab_browse,
+            on_download_completed=self.on_download_completed
+        )
+        self.browse_view.pack(fill="both", expand=True)
+
         self.download_view = DownloadView(
             self.tab_download,
-            on_download_completed=self.on_download_completed
+            on_download_completed=self.on_download_completed,
+            on_switch_to_browse=self.switch_to_browse_tab
         )
         self.download_view.pack(fill="both", expand=True)
 
@@ -112,12 +122,18 @@ class R36SyncApp(ctk.CTk):
         """Switches UI to the Download tab."""
         self.tabview.set("Download")
 
+    def switch_to_browse_tab(self):
+        """Switches UI to the Browse tab."""
+        self.tabview.set("Browse")
+
     def on_download_completed(self):
-        """Called when a game download finishes; refreshes library."""
+        """Called when a game download finishes; refreshes library and browse."""
         self.library_view.refresh_library()
+        self.browse_view.render_systems()
 
     def on_minerva_db_updated(self):
         """Called when Minerva database scan adds games."""
+        self.browse_view.render_systems()
         self.download_view._run_search()
         self.download_view.update_db_stat()
         self.scanner_view.refresh_stats()

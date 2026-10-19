@@ -20,9 +20,10 @@ PAGE_SIZE = 50
 class DownloadView(ctk.CTkFrame):
     """Download Tab: Instant search of stored Minerva database and library download manager."""
 
-    def __init__(self, master, on_download_completed=None, **kwargs):
+    def __init__(self, master, on_download_completed=None, on_switch_to_browse=None, **kwargs):
         super().__init__(master, **kwargs)
         self.on_download_completed = on_download_completed
+        self.on_switch_to_browse = on_switch_to_browse
         self.current_page = 0
         self.total_results = 0
         self.current_results: List[Dict[str, Any]] = []
@@ -46,6 +47,17 @@ class DownloadView(ctk.CTkFrame):
             text="Minerva Archive Catalog",
             font=ctk.CTkFont(size=20, weight="bold")
         ).pack(side="left")
+
+        if self.on_switch_to_browse:
+            ctk.CTkButton(
+                title_row,
+                text="Browse by System →",
+                font=ctk.CTkFont(size=12, weight="bold"),
+                fg_color="#4f46e5",
+                hover_color="#4338ca",
+                height=28,
+                command=self.on_switch_to_browse
+            ).pack(side="left", padx=12)
 
         self.db_stat_badge = ctk.CTkLabel(
             title_row,

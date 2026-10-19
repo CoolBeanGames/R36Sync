@@ -201,6 +201,70 @@ class TestR36Sync(unittest.TestCase):
         self.assertTrue(out_art.exists())
         self.assertGreater(out_art.stat().st_size, 500)
 
+    def test_browse_by_console_and_letter(self):
+        sample_roms = [
+            {
+                "minerva_id": "201",
+                "title": "Castlevania - Aria of Sorrow",
+                "clean_title": "Castlevania - Aria of Sorrow",
+                "file_name": "Castlevania - Aria of Sorrow (USA).zip",
+                "console_code": "gba",
+                "console_name": "Game Boy Advance",
+                "group_name": "No-Intro",
+                "size_str": "4.00 MB",
+                "torrent_url": "https://minerva-archive.org/assets/test.torrent",
+                "magnet_url": "magnet:?xt=urn:btih:123",
+                "rom_url": "https://minerva-archive.org/rom?id=201"
+            },
+            {
+                "minerva_id": "202",
+                "title": "Crash Bandicoot - The Huge Adventure",
+                "clean_title": "Crash Bandicoot - The Huge Adventure",
+                "file_name": "Crash Bandicoot - The Huge Adventure (USA).zip",
+                "console_code": "gba",
+                "console_name": "Game Boy Advance",
+                "group_name": "No-Intro",
+                "size_str": "4.00 MB",
+                "torrent_url": "https://minerva-archive.org/assets/test.torrent",
+                "magnet_url": "magnet:?xt=urn:btih:123",
+                "rom_url": "https://minerva-archive.org/rom?id=202"
+            },
+            {
+                "minerva_id": "203",
+                "title": "Doom",
+                "clean_title": "Doom",
+                "file_name": "Doom (USA).zip",
+                "console_code": "gba",
+                "console_name": "Game Boy Advance",
+                "group_name": "No-Intro",
+                "size_str": "4.00 MB",
+                "torrent_url": "https://minerva-archive.org/assets/test.torrent",
+                "magnet_url": "magnet:?xt=urn:btih:123",
+                "rom_url": "https://minerva-archive.org/rom?id=203"
+            }
+        ]
+        self.db.upsert_roms(sample_roms)
+
+        # 1. Test letters list for GBA
+        letters = self.db.get_console_letters("gba")
+        self.assertIn("C", letters)
+        self.assertIn("D", letters)
+
+        # 2. Browse by letter 'C'
+        c_games = self.db.get_games_by_console("gba", letter="C")
+        self.assertEqual(len(c_games), 2)
+        self.assertTrue(all(g["clean_title"].startswith("C") for g in c_games))
+
+        # 3. Browse by letter 'D'
+        d_games = self.db.get_games_by_console("gba", letter="D")
+        self.assertEqual(len(d_games), 1)
+        self.assertEqual(d_games[0]["clean_title"], "Doom")
+
+        # 4. Search within GBA
+        search_res = self.db.get_games_by_console("gba", search="Aria")
+        self.assertEqual(len(search_res), 1)
+        self.assertEqual(search_res[0]["clean_title"], "Castlevania - Aria of Sorrow")
+
 
 if __name__ == "__main__":
     unittest.main()
