@@ -482,13 +482,21 @@ class TestR36Sync(unittest.TestCase):
     def test_downloader_unzip_and_delete_archive(self):
         import zipfile
         from r36sync.downloader import downloader, DownloadTask
+        from r36sync.sync_manager import sync_manager
 
         gba_dir = self.library_dir / "gba"
         gba_dir.mkdir(parents=True, exist_ok=True)
         zip_path = gba_dir / "test_game.zip"
 
-        # Create a test zip file
+        # Also create a dummy copy in .cache
+        cache_dir = self.library_dir / ".cache" / "subdir"
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        cache_zip = cache_dir / "test_game.zip"
+
+        # Create test zip files
         with zipfile.ZipFile(zip_path, "w") as zf:
+            zf.writestr("test_game.gba", b"TEST_GBA_BINARY")
+        with zipfile.ZipFile(cache_zip, "w") as zf:
             zf.writestr("test_game.gba", b"TEST_GBA_BINARY")
 
         task = DownloadTask({"console_code": "gba", "file_name": "test_game.zip"})
@@ -499,6 +507,16 @@ class TestR36Sync(unittest.TestCase):
         self.assertEqual(extracted[0].name, "test_game.gba")
         self.assertTrue((gba_dir / "test_game.gba").exists())
         self.assertFalse(zip_path.exists())
+        self.assertFalse(cache_zip.exists())
+
+        # Test scan_library auto-cleanup of redundant leftover zips
+        redundant_zip = gba_dir / "test_game.zip"
+        with zipfile.ZipFile(redundant_zip, "w") as zf:
+            zf.writestr("test_game.gba", b"TEST_GBA_BINARY")
+        self.assertTrue(redundant_zip.exists())
+
+        sync_manager.scan_library(str(self.library_dir), self.sd_root)
+        self.assertFalse(redundant_zip.exists())
 
     def test_preexisting_sd_games_in_library(self):
         from r36sync.sync_manager import sync_manager

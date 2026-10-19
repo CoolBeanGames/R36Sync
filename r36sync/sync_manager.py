@@ -96,6 +96,21 @@ class SyncManager:
             if not console_folder.exists():
                 continue
 
+            # Auto-clean any leftover archive files (.zip, .7z) whose extracted content is already present
+            existing_stems = {
+                f.stem.lower()
+                for f in console_folder.iterdir()
+                if f.is_file() and f.suffix.lower() not in [".zip", ".7z", ".torrent", ".magnet", ".png", ".jpg"]
+            }
+            for f in list(console_folder.iterdir()):
+                if f.is_file() and f.suffix.lower() in [".zip", ".7z"] and f.stem.lower() in existing_stems:
+                    try:
+                        from .downloader import downloader
+                        downloader._force_delete_file(f)
+                        print(f"Auto-cleaned redundant archive: {f.name}")
+                    except Exception:
+                        pass
+
             # First pass: find all .m3u / .m3a playlists and their referenced discs
             from .m3u_manager import m3u_manager
             hidden_discs = set()

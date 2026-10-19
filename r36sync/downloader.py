@@ -139,6 +139,33 @@ class Downloader:
                 self._queue.task_done()
                 self._active_task = None
 
+    @staticmethod
+    def _force_delete_file(file_path: Path, max_retries: int = 5, delay: float = 0.3) -> bool:
+        """Robustly deletes a file, retrying if Windows file locks or antivirus temporarily holds it."""
+        import time
+        if not file_path or not file_path.exists():
+            return True
+        for attempt in range(max_retries):
+            try:
+                if os.name == 'nt':
+                    import stat
+                    try:
+                        os.chmod(file_path, stat.S_IWRITE)
+                    except Exception:
+                        pass
+                file_path.unlink(missing_ok=True)
+                return True
+            except (PermissionError, OSError):
+                if attempt < max_retries - 1:
+                    time.sleep(delay)
+                else:
+                    try:
+                        if os.name == 'nt':
+                            subprocess.run(["cmd", "/c", "del", "/f", "/q", str(file_path)], capture_output=True)
+                    except Exception:
+                        pass
+        return not file_path.exists()
+
     def _unzip_archive_if_needed(self, task: DownloadTask) -> List[Path]:
         """
         If the downloaded file is a .zip (or .7z) archive, extract its contents to
@@ -158,36 +185,60 @@ class Downloader:
 
         if ext == ".zip":
             import zipfile
+            zf = None
             try:
                 task.speed = "Unzipping archive..."
                 self._notify(task)
-                with zipfile.ZipFile(dest_path, "r") as zf:
-                    for member in zf.infolist():
-                        if member.is_dir():
-                            continue
-                        extracted_file = zf.extract(member, path=target_dir)
-                        extracted_paths.append(Path(extracted_file))
-                # Delete the original zip file
-                dest_path.unlink()
-                print(f"Unzipped {dest_path.name} ({len(extracted_paths)} files) and deleted zip.")
+                zf = zipfile.ZipFile(dest_path, "r")
+                for member in zf.infolist():
+                    if member.is_dir():
+                        continue
+                    extracted_file = zf.extract(member, path=target_dir)
+                    extracted_paths.append(Path(extracted_file))
             except Exception as e:
                 print(f"Error unzipping {dest_path}: {e}")
-                return [dest_path]
+            finally:
+                if zf:
+                    try:
+                        zf.close()
+                    except Exception:
+                        pass
+                del zf
+                import gc
+                gc.collect()
+
+            # If files were extracted, delete the original zip file
+            if extracted_paths:
+                deleted = self._force_delete_file(dest_path)
+                if deleted:
+                    print(f"Unzipped {dest_path.name} ({len(extracted_paths)} files) and deleted zip.")
+                else:
+                    print(f"Warning: could not delete zip {dest_path.name} after extraction.")
+
         elif ext == ".7z":
             try:
                 task.speed = "Extracting 7z..."
                 self._notify(task)
                 creationflags = subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0
-                subprocess.run(
+                res = subprocess.run(
                     ["7z", "x", str(dest_path), f"-o{str(target_dir)}", "-y"],
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL,
-                    check=True,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
                     creationflags=creationflags
                 )
-                dest_path.unlink()
-            except Exception:
-                pass
+                if res.returncode == 0:
+                    self._force_delete_file(dest_path)
+            except Exception as e:
+                print(f"Error extracting 7z {dest_path}: {e}")
+
+        # Also purge any duplicate copy of the archive from .cache
+        cache_dirs = [dest_path.parent.parent / ".cache", Path(settings.library_dir) / ".cache"]
+        for c_dir in cache_dirs:
+            if c_dir.exists():
+                for root, _, files in os.walk(c_dir):
+                    for f in files:
+                        if f.lower() == dest_path.name.lower():
+                            self._force_delete_file(Path(root) / f)
 
         if extracted_paths:
             task.dest_path = extracted_paths[0]
@@ -287,8 +338,12 @@ class Downloader:
                     break
 
             if downloaded_file and downloaded_file.exists():
-                shutil.move(downloaded_file, dest_path)
-                return
+                aria2_ctl = downloaded_file.parent / f"{downloaded_file.name}.aria2"
+                if not aria2_ctl.exists():
+                    shutil.move(downloaded_file, dest_path)
+                    return
+                else:
+                    print(f"File {file_name} download was incomplete ({aria2_ctl.name} present).")
 
         # 4. Fallback: Save .torrent file directly into user library folder
         # alongside a .magnet helper so user can double-click or use anytime
