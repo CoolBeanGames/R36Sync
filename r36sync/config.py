@@ -91,7 +91,7 @@ CONSOLES: Dict[str, ConsoleDef] = {
         minerva_path="No-Intro/Sony - PlayStation (PS one Classics) (PSN)/",
         minerva_group="No-Intro",
         libretro_name="Sony - PlayStation",
-        extensions=[".chd", ".pbp", ".cue", ".iso", ".bin", ".zip", ".7z"],
+        extensions=[".chd", ".pbp", ".cue", ".iso", ".bin", ".zip", ".7z", ".m3u", ".m3a"],
         torrent_prefix="Minerva_Myrient - No-Intro - Sony - PlayStation (PS one Classics) (PSN).torrent"
     ),
     "nds": ConsoleDef(

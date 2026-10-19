@@ -34,12 +34,20 @@ A modern graphical desktop application for managing, downloading, and synchroniz
    - Evaluates signature console folders (`gb`, `gba`, `snes`, `nes`, `megadrive`, `psx`, `n64`, `bios`, etc.) and volume labels.
    - Includes a **"Setup Standard R36S Folders"** tool to prepare fresh SD cards with the complete ArkOS directory and `images/` hierarchy.
 
-5. **Bidirectional Sync & Unsync Engine**
+5. **Multi-Disc Playlist Manager (.m3u / .m3a)**
+   - Automatically detects multi-disc games (e.g., `Final Fantasy VII (Disc 1).chd`, `(Disc 2).chd`, `(Disc 3).chd`) in your library.
+   - Generates `.m3u` or `.m3a` playlists with correct disc ordering.
+   - Automatically duplicates Disc 1 cover art to `<playlist_name>-image.png` so the game displays box art in EmulationStation.
+   - Hides cluttering individual disc entries in the Library and shows a clean single entry with a `[Multi-Disc: X Discs]` badge.
+   - Synchronizes all referenced disc files to the R36S SD card under the single playlist entry and removes all discs cleanly upon unsync.
+   - Features both 1-click batch playlist generation and manual custom playlist authoring.
+
+6. **Bidirectional Sync & Unsync Engine**
    - **Syncing**: Any checked games not yet on the SD card are copied over with their box art (`images/<rom_name>-image.png`).
    - **Unsyncing**: If you uncheck a game that is currently on the handheld and click **Sync**, the game and its cover art are removed from the SD card.
    - Real-time progress modal with file transfer details.
 
-6. **Automatic Save Game Backups**
+7. **Automatic Save Game Backups**
    - Automatically discovers and backs up in-game battery saves (`.srm`, `.sav`) and save states (`.state*`) from the handheld before every sync.
    - Organizes saves in both a `latest/` directory and timestamped version archives in `history/`.
    - Built-in Save Backup manager allowing one-click restores back to the SD card.
@@ -109,6 +117,7 @@ R36Sync/
 │   ├── minerva_scanner.py      # Minerva Archive crawler and cataloger
 │   ├── cover_art.py            # Libretro box art fetcher and thumbnail cache
 │   ├── sd_detector.py          # Windows drive & ArkOS folder structure detection
+│   ├── m3u_manager.py          # Multi-disc detection and .m3u / .m3a playlist generator
 │   ├── sync_manager.py         # Handheld sync/unsync and save backup engine
 │   ├── downloader.py           # Download queue with aria2c integration
 │   └── gui/
@@ -116,6 +125,7 @@ R36Sync/
 │       ├── library_view.py     # Main Page: Library listing & sync checkboxes
 │       ├── browse_view.py      # Browse Tab: Browse by System -> Expand by Game
 │       ├── download_view.py    # Download Tab: Searchable Minerva catalog
+│       ├── multidisc_dialog.py # Multi-Disc (.m3u / .m3a) modal manager & creator
 │       ├── handheld_view.py    # SD Card & Sync Tab: Hardware & saves manager
 │       ├── scanner_view.py     # Minerva Database Tab: Indexing coverage
 │       └── settings_view.py    # Preferences, paths, and theme configuration

@@ -29,6 +29,8 @@ class LibraryGame:
     is_checked: bool             # UI selection checkbox state
     has_save_backup: bool = False
     handheld_save_file: Optional[Path] = None
+    is_playlist: bool = False
+    disc_count: int = 1
 
     @property
     def size_str(self) -> str:
@@ -93,6 +95,17 @@ class SyncManager:
             if not console_folder.exists():
                 continue
 
+            # First pass: find all .m3u / .m3a playlists and their referenced discs
+            from .m3u_manager import m3u_manager
+            hidden_discs = set()
+            playlists = [f for f in console_folder.iterdir() if f.is_file() and f.suffix.lower() in [".m3u", ".m3a"]]
+            playlist_disc_map = {}
+            for pl in playlists:
+                discs = m3u_manager.parse_playlist_discs(pl)
+                playlist_disc_map[pl] = discs
+                for d in discs:
+                    hidden_discs.add(d.name.lower())
+
             for file_path in console_folder.iterdir():
                 if not file_path.is_file():
                     continue
@@ -103,8 +116,22 @@ class SyncManager:
                 if c_def.extensions and ext not in c_def.extensions and ext not in [".zip", ".7z"]:
                     continue
 
+                # If this file is a disc belonging to an active playlist, hide from top-level list
+                if file_path.name.lower() in hidden_discs:
+                    continue
+
                 stem = file_path.stem
-                size_bytes = file_path.stat().st_size
+                is_playlist = ext in [".m3u", ".m3a"]
+                disc_count = 1
+
+                if is_playlist:
+                    discs = playlist_disc_map.get(file_path, [])
+                    disc_count = max(1, len(discs))
+                    size_bytes = sum(d.stat().st_size for d in discs if d.exists())
+                    if size_bytes == 0:
+                        size_bytes = file_path.stat().st_size
+                else:
+                    size_bytes = file_path.stat().st_size
 
                 # Check cover art
                 cover_path = cover_manager.get_cover_art_path(str(lib_path), code, file_path.name)
@@ -129,7 +156,9 @@ class SyncManager:
                     cover_art_path=cover_path if has_art else None,
                     is_on_handheld=is_on_handheld,
                     is_checked=is_checked,
-                    handheld_save_file=handheld_save
+                    handheld_save_file=handheld_save,
+                    is_playlist=is_playlist,
+                    disc_count=disc_count
                 ))
 
         # Sort alphabetically by console then title
@@ -249,6 +278,20 @@ class SyncManager:
                 try:
                     shutil.copy2(game.file_path, target_rom_file)
 
+                    # If this is a multi-disc playlist, also copy all referenced disc files
+                    if game.is_playlist:
+                        from .m3u_manager import m3u_manager
+                        discs = m3u_manager.parse_playlist_discs(game.file_path)
+                        for d in discs:
+                            try:
+                                rel = d.relative_to(game.file_path.parent)
+                            except ValueError:
+                                rel = Path(d.name)
+                            dest_disc = target_console_dir / rel
+                            dest_disc.parent.mkdir(parents=True, exist_ok=True)
+                            if not dest_disc.exists() or dest_disc.stat().st_size != d.stat().st_size:
+                                shutil.copy2(d, dest_disc)
+
                     # Copy cover art if available
                     if game.cover_art_path and game.cover_art_path.exists():
                         shutil.copy2(game.cover_art_path, target_art_file)
@@ -266,6 +309,20 @@ class SyncManager:
                     # Remove ROM file
                     if target_rom_file.exists():
                         target_rom_file.unlink()
+
+                    # If this is a multi-disc playlist, also remove all referenced disc files
+                    if game.is_playlist:
+                        from .m3u_manager import m3u_manager
+                        discs = m3u_manager.parse_playlist_discs(game.file_path)
+                        for d in discs:
+                            try:
+                                rel = d.relative_to(game.file_path.parent)
+                            except ValueError:
+                                rel = Path(d.name)
+                            dest_disc = target_console_dir / rel
+                            if dest_disc.exists():
+                                dest_disc.unlink()
+
                     # Remove cover art
                     if target_art_file.exists():
                         target_art_file.unlink()

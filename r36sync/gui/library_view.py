@@ -14,6 +14,7 @@ from ..config import CONSOLES, settings
 from ..cover_art import cover_manager
 from ..sd_detector import sd_detector, SDCardInfo
 from ..sync_manager import sync_manager, LibraryGame, SyncResult
+from .multidisc_dialog import MultiDiscDialog
 
 
 class LibraryView(ctk.CTkFrame):
@@ -126,6 +127,17 @@ class LibraryView(ctk.CTkFrame):
                 command=self.on_switch_to_browse
             )
             self.browse_systems_btn.pack(side="left", padx=4)
+
+        self.multidisc_btn = ctk.CTkButton(
+            action_row,
+            text="Multi-Disc (.m3u)",
+            width=130,
+            height=30,
+            fg_color="#8b5cf6",
+            hover_color="#7c3aed",
+            command=self.open_multidisc_dialog
+        )
+        self.multidisc_btn.pack(side="left", padx=4)
 
         self.open_folder_btn = ctk.CTkButton(
             action_row,
@@ -334,20 +346,27 @@ class LibraryView(ctk.CTkFrame):
         info_frame = ctk.CTkFrame(row, fg_color="transparent")
         info_frame.pack(side="left", fill="both", expand=True, padx=8, pady=6)
 
+        display_title = game.stem
+        if game.is_playlist:
+            display_title = f"{game.stem}  💿 [{game.disc_count} Discs]"
+
         title_lbl = ctk.CTkLabel(
             info_frame,
-            text=game.stem,
+            text=display_title,
             font=ctk.CTkFont(size=13, weight="bold"),
             anchor="w"
         )
         title_lbl.pack(fill="x")
 
         sub_text = f"{game.console_name} • {game.size_str}"
+        if game.is_playlist:
+            sub_text += f" • Playlist ({game.file_path.suffix.lower()})"
+
         sub_lbl = ctk.CTkLabel(
             info_frame,
             text=sub_text,
             font=ctk.CTkFont(size=11),
-            text_color="gray60",
+            text_color="#818cf8" if game.is_playlist else "gray60",
             anchor="w"
         )
         sub_lbl.pack(fill="x")
@@ -408,6 +427,9 @@ class LibraryView(ctk.CTkFrame):
             cover_manager.download_cover_art(game.console_code, game.file_name)
             self.after(100, self.refresh_library)
         threading.Thread(target=task, daemon=True).start()
+
+    def open_multidisc_dialog(self):
+        MultiDiscDialog(self, on_playlists_updated=self.refresh_library)
 
     def open_library_folder(self):
         lib_path = Path(settings.library_dir)

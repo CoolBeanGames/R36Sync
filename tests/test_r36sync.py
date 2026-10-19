@@ -265,6 +265,106 @@ class TestR36Sync(unittest.TestCase):
         self.assertEqual(len(search_res), 1)
         self.assertEqual(search_res[0]["clean_title"], "Castlevania - Aria of Sorrow")
 
+    def test_multidisc_detection_and_m3u_creation(self):
+        from r36sync.m3u_manager import M3UManager
+        m_mgr = M3UManager()
+
+        psx_dir = self.library_dir / "psx"
+        psx_dir.mkdir(parents=True, exist_ok=True)
+
+        # Create multi-disc files for Final Fantasy VII
+        disc1 = psx_dir / "Final Fantasy VII (USA) (Disc 1).chd"
+        disc2 = psx_dir / "Final Fantasy VII (USA) (Disc 2).chd"
+        disc3 = psx_dir / "Final Fantasy VII (USA) (Disc 3).chd"
+        single_game = psx_dir / "Crash Bandicoot (USA).chd"
+
+        disc1.write_bytes(b"DISC_1_DATA")
+        disc2.write_bytes(b"DISC_2_DATA")
+        disc3.write_bytes(b"DISC_3_DATA")
+        single_game.write_bytes(b"SINGLE_DATA")
+
+        # Create Disc 1 cover art
+        art_dir = psx_dir / "images"
+        art_dir.mkdir(parents=True, exist_ok=True)
+        (art_dir / "Final Fantasy VII (USA) (Disc 1)-image.png").write_bytes(b"FAKE_ART_PNG")
+
+        # 1. Detect multi-disc sets
+        sets = m_mgr.scan_directory_for_multidisc(psx_dir, "psx")
+        self.assertEqual(len(sets), 1)
+        ff7_set = sets[0]
+        self.assertEqual(ff7_set.base_name, "Final Fantasy VII (USA)")
+        self.assertEqual(ff7_set.disc_count, 3)
+        self.assertFalse(ff7_set.has_playlist)
+
+        # Verify correct ordering (Disc 1, Disc 2, Disc 3)
+        self.assertEqual(ff7_set.disc_files[0].name, "Final Fantasy VII (USA) (Disc 1).chd")
+        self.assertEqual(ff7_set.disc_files[1].name, "Final Fantasy VII (USA) (Disc 2).chd")
+        self.assertEqual(ff7_set.disc_files[2].name, "Final Fantasy VII (USA) (Disc 3).chd")
+
+        # 2. Create .m3u playlist
+        pl_path = m_mgr.create_playlist(ff7_set, extension=".m3u")
+        self.assertTrue(pl_path.exists())
+        self.assertEqual(pl_path.name, "Final Fantasy VII (USA).m3u")
+
+        # Read playlist content
+        lines = [line.strip() for line in pl_path.read_text(encoding="utf-8").splitlines() if line.strip()]
+        self.assertEqual(len(lines), 3)
+        self.assertEqual(lines[0], "Final Fantasy VII (USA) (Disc 1).chd")
+        self.assertEqual(lines[1], "Final Fantasy VII (USA) (Disc 2).chd")
+        self.assertEqual(lines[2], "Final Fantasy VII (USA) (Disc 3).chd")
+
+        # Verify cover art was linked for the playlist
+        pl_art = art_dir / "Final Fantasy VII (USA)-image.png"
+        self.assertTrue(pl_art.exists())
+
+        # 3. Create .m3a playlist format test
+        re2_disc1 = psx_dir / "Resident Evil 2 (USA) (Disc 1) (Leon).chd"
+        re2_disc2 = psx_dir / "Resident Evil 2 (USA) (Disc 2) (Claire).chd"
+        re2_disc1.write_bytes(b"RE2_D1")
+        re2_disc2.write_bytes(b"RE2_D2")
+
+        sets_re2 = m_mgr.scan_directory_for_multidisc(psx_dir, "psx")
+        re2_set = next(s for s in sets_re2 if "Resident Evil 2" in s.base_name)
+        m3a_path = m_mgr.create_playlist(re2_set, extension=".m3a")
+        self.assertTrue(m3a_path.exists())
+        self.assertEqual(m3a_path.suffix, ".m3a")
+
+    def test_multidisc_sync_lifecycle(self):
+        from r36sync.m3u_manager import m3u_manager
+        from r36sync.sync_manager import SyncManager
+
+        psx_lib = self.library_dir / "psx"
+        psx_lib.mkdir(parents=True, exist_ok=True)
+
+        d1 = psx_lib / "Metal Gear Solid (USA) (Disc 1).chd"
+        d2 = psx_lib / "Metal Gear Solid (USA) (Disc 2).chd"
+        d1.write_bytes(b"MGS_D1_RAW")
+        d2.write_bytes(b"MGS_D2_RAW")
+
+        sets = m_mgr = m3u_manager.scan_directory_for_multidisc(psx_lib, "psx")
+        pl_path = m3u_manager.create_playlist(sets[0], extension=".m3u")
+
+        sm = SyncManager()
+
+        # Scan library: only the .m3u should be listed as the primary game entry, not redundant loose discs
+        games = sm.scan_library(str(self.library_dir), self.sd_root)
+        psx_games = [g for g in games if g.console_code == "psx"]
+        self.assertEqual(len(psx_games), 1)
+        self.assertTrue(psx_games[0].is_playlist)
+        self.assertEqual(psx_games[0].disc_count, 2)
+
+        # Sync to handheld
+        psx_games[0].is_checked = True
+        result = sm.sync_to_handheld(psx_games, self.sd_root, str(self.backup_dir))
+        self.assertEqual(result.synced_count, 1)
+
+        # Verify on SD card: .m3u playlist AND both disc files were copied!
+        sd_psx = self.sd_root / "psx"
+        self.assertTrue((sd_psx / "Metal Gear Solid (USA).m3u").exists())
+        self.assertTrue((sd_psx / "Metal Gear Solid (USA) (Disc 1).chd").exists())
+        self.assertTrue((sd_psx / "Metal Gear Solid (USA) (Disc 2).chd").exists())
+
 
 if __name__ == "__main__":
     unittest.main()
+
