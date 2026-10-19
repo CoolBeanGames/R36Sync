@@ -80,13 +80,31 @@ class MinervaScanner:
         self._thread.start()
 
     def scan_console(self, console_def: ConsoleDef) -> int:
-        """Scans a single console directory from Minerva Archive."""
-        quoted_path = urllib.parse.quote(console_def.minerva_path)
+        """Scans a single console directory and any extra paths from Minerva Archive."""
+        total = self._scan_single_path(
+            console_def,
+            console_def.minerva_path,
+            console_def.torrent_prefix,
+            console_def.minerva_group
+        )
+
+        for extra_path in getattr(console_def, "extra_paths", []):
+            extra_torrent = ""
+            if "PS one Classics" in extra_path:
+                extra_torrent = "Minerva_Myrient - No-Intro - Sony - PlayStation (PS one Classics) (PSN).torrent"
+            extra_group = "No-Intro" if extra_path.startswith("No-Intro") else console_def.minerva_group
+            total += self._scan_single_path(console_def, extra_path, extra_torrent, extra_group)
+
+        return total
+
+    def _scan_single_path(self, console_def: ConsoleDef, path: str, torrent_prefix: str, group_name: str) -> int:
+        """Scans an individual directory path on Minerva Archive."""
+        quoted_path = urllib.parse.quote(path)
         url = f"{MINERVA_BASE_URL}/browse/./{quoted_path}"
         req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
 
         try:
-            with urllib.request.urlopen(req, timeout=20) as response:
+            with urllib.request.urlopen(req, timeout=60) as response:
                 html = response.read().decode("utf-8", errors="replace")
         except Exception as e:
             print(f"Error fetching {url}: {e}")
@@ -100,15 +118,11 @@ class MinervaScanner:
 
         # Standard torrent URL on Minerva
         torrent_url = ""
-        if console_def.torrent_prefix:
-            quoted_torrent = urllib.parse.quote(console_def.torrent_prefix)
+        if torrent_prefix:
+            quoted_torrent = urllib.parse.quote(torrent_prefix)
             torrent_url = f"{MINERVA_BASE_URL}/assets/Minerva_Myrient_v0.3/{quoted_torrent}"
 
-        # Pattern matching directory entry rows:
-        # <div class="entry" data-name="...">
-        #   <a href="/rom?id=123" ...>Game Name.zip</a>
-        #   <span>35.90 KB</span>
-        #   ... (optional entry magnet)
+        # Pattern matching directory entry rows
         entry_pattern = re.compile(
             r'<div class="entry" data-name="([^"]+)">\s*'
             r'<a href="(/rom\?id=(\d+))"[^>]*>([^<]+)</a>\s*'
@@ -119,10 +133,11 @@ class MinervaScanner:
         roms_to_insert = []
         import html as html_module
 
+        found_count = 0
         for match in entry_pattern.finditer(html):
             raw_data_name, rom_path, rom_id, file_name, size_str = match.groups()
+            found_count += 1
 
-            # Clean and sanitize HTML entities and spaces
             file_name = html_module.unescape(file_name.strip())
             title = clean_game_title(file_name)
 
@@ -133,7 +148,7 @@ class MinervaScanner:
                 "file_name": file_name,
                 "console_code": console_def.code,
                 "console_name": console_def.display_name,
-                "group_name": console_def.minerva_group,
+                "group_name": group_name,
                 "size_str": size_str.strip(),
                 "torrent_url": torrent_url,
                 "magnet_url": folder_magnet,
@@ -141,7 +156,6 @@ class MinervaScanner:
                 "torrent_file_idx": 0
             })
 
-            # Batch write every 500 items
             if len(roms_to_insert) >= 500:
                 db.upsert_roms(roms_to_insert)
                 roms_to_insert.clear()
@@ -149,7 +163,7 @@ class MinervaScanner:
         if roms_to_insert:
             db.upsert_roms(roms_to_insert)
 
-        return len(entry_pattern.findall(html))
+        return found_count
 
 
 # Global scanner instance

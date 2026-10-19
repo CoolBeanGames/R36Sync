@@ -18,6 +18,7 @@ class ConsoleDef:
     libretro_name: str             # Libretro thumbnail repository name
     extensions: List[str]          # Accepted ROM extensions
     torrent_prefix: str = ""       # Torrent filename on Minerva if standard
+    extra_paths: List[str] = field(default_factory=list)  # Additional Minerva directory paths to index
 
 
 # R36S / ArkOS standard console directory definitions and Minerva mappings
@@ -88,11 +89,12 @@ CONSOLES: Dict[str, ConsoleDef] = {
     "psx": ConsoleDef(
         code="psx",
         display_name="Sony PlayStation",
-        minerva_path="No-Intro/Sony - PlayStation (PS one Classics) (PSN)/",
-        minerva_group="No-Intro",
+        minerva_path="Redump/Sony - PlayStation/",
+        minerva_group="Redump",
         libretro_name="Sony - PlayStation",
         extensions=[".chd", ".pbp", ".cue", ".iso", ".bin", ".zip", ".7z", ".m3u", ".m3a"],
-        torrent_prefix="Minerva_Myrient - No-Intro - Sony - PlayStation (PS one Classics) (PSN).torrent"
+        torrent_prefix="Minerva_Myrient - Redump - Sony - PlayStation.torrent",
+        extra_paths=["No-Intro/Sony - PlayStation (PS one Classics) (PSN)/"]
     ),
     "nds": ConsoleDef(
         code="nds",
