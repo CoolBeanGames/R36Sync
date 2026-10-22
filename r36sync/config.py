@@ -6,6 +6,8 @@ from dataclasses import dataclass, field
 import json
 import os
 from pathlib import Path
+import shutil
+import sys
 from typing import Dict, List, Optional
 
 
@@ -249,12 +251,44 @@ SAVE_EXTENSIONS = [
     ".dsv", ".rtc", ".fs", ".nv"
 ]
 
-BASE_DIR = Path(__file__).resolve().parent.parent
+if getattr(sys, 'frozen', False):
+    BUNDLE_DIR = Path(getattr(sys, '_MEIPASS', Path(sys.executable).parent))
+    APP_DIR = Path(sys.executable).parent
+else:
+    BUNDLE_DIR = Path(__file__).resolve().parent.parent
+    APP_DIR = BUNDLE_DIR
+
+BASE_DIR = APP_DIR
 DEFAULT_LIBRARY_DIR = Path.home() / "Documents" / "R36Sync_Library"
 DEFAULT_BACKUP_DIR = DEFAULT_LIBRARY_DIR / "backups"
-SETTINGS_FILE = BASE_DIR / "settings.json"
-DB_FILE = BASE_DIR / "r36sync.db"
-ARIA2_PATH = BASE_DIR / "bin" / "aria2c.exe"
+SETTINGS_FILE = APP_DIR / "settings.json"
+
+if (APP_DIR / "r36sync.db").exists():
+    DB_FILE = APP_DIR / "r36sync.db"
+elif (BUNDLE_DIR / "r36sync.db").exists():
+    DB_FILE = BUNDLE_DIR / "r36sync.db"
+else:
+    DB_FILE = APP_DIR / "r36sync.db"
+
+
+def _find_aria2_path() -> Path:
+    bin_name = "aria2c.exe" if os.name == 'nt' else "aria2c"
+    candidates = [
+        APP_DIR / "bin" / bin_name,
+        APP_DIR / bin_name,
+        BUNDLE_DIR / "bin" / bin_name,
+        BUNDLE_DIR / bin_name
+    ]
+    for c in candidates:
+        if c.exists():
+            return c
+    system_aria = shutil.which("aria2c")
+    if system_aria:
+        return Path(system_aria)
+    return APP_DIR / "bin" / bin_name
+
+
+ARIA2_PATH = _find_aria2_path()
 
 
 class Settings:

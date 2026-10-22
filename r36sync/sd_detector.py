@@ -11,6 +11,9 @@ from typing import List, Optional, Tuple
 from .config import CONSOLES
 
 
+import sys
+
+
 # Characteristic console directories on ArkOS for R36S
 SIGNATURE_FOLDERS = {
     "gb", "gbc", "gba", "nes", "snes", "megadrive", "n64",
@@ -44,24 +47,39 @@ class SDCardInfo:
 
 
 class SDDetector:
-    """Detects and validates connected R36S SD cards."""
+    """Detects and validates connected R36S SD cards across Windows, macOS, and Linux."""
 
     @staticmethod
     def get_logical_drives() -> List[str]:
-        """Returns list of active drive paths (e.g. ['C:\\', 'E:\\'])."""
+        """Returns list of active drive / volume paths."""
         drives = []
-        try:
-            bitmask = ctypes.windll.kernel32.GetLogicalDrives()
-            for letter in "ABCDEFGHIJKLMNOPQRSTUVWXYZ":
-                if bitmask & 1:
-                    drives.append(f"{letter}:\\")
-                bitmask >>= 1
-        except Exception:
-            # Fallback for non-ctypes environments
-            for letter in "DEFGHIJKLMNOPQRSTUVWXYZ":
-                path = f"{letter}:\\"
-                if os.path.exists(path):
-                    drives.append(path)
+        if os.name == 'nt':
+            try:
+                bitmask = ctypes.windll.kernel32.GetLogicalDrives()
+                for letter in "ABCDEFGHIJKLMNOPQRSTUVWXYZ":
+                    if bitmask & 1:
+                        drives.append(f"{letter}:\\")
+                    bitmask >>= 1
+            except Exception:
+                for letter in "ABCDEFGHIJKLMNOPQRSTUVWXYZ":
+                    path = f"{letter}:\\"
+                    if os.path.exists(path):
+                        drives.append(path)
+        elif sys.platform == "darwin":
+            volumes = Path("/Volumes")
+            if volumes.exists():
+                try:
+                    drives = [str(p) for p in volumes.iterdir() if p.is_dir()]
+                except Exception:
+                    pass
+        else:
+            for base in ["/media", "/mnt", f"/run/media/{os.getenv('USER', '')}"]:
+                p = Path(base)
+                if p.exists():
+                    try:
+                        drives.extend([str(d) for d in p.iterdir() if d.is_dir()])
+                    except Exception:
+                        pass
         return drives
 
     @staticmethod
@@ -70,18 +88,24 @@ class SDDetector:
         label = ""
         fs = ""
         is_removable = False
-        try:
-            buf = ctypes.create_unicode_buffer(261)
-            fs_buf = ctypes.create_unicode_buffer(261)
-            ctypes.windll.kernel32.GetVolumeInformationW(
-                drive_path, buf, 260, None, None, None, fs_buf, 260
-            )
-            label = buf.value
-            fs = fs_buf.value
-            drive_type = ctypes.windll.kernel32.GetDriveTypeW(drive_path)
-            is_removable = (drive_type == 2)  # DRIVE_REMOVABLE = 2
-        except Exception:
-            pass
+        if os.name == 'nt':
+            try:
+                buf = ctypes.create_unicode_buffer(261)
+                fs_buf = ctypes.create_unicode_buffer(261)
+                ctypes.windll.kernel32.GetVolumeInformationW(
+                    drive_path, buf, 260, None, None, None, fs_buf, 260
+                )
+                label = buf.value
+                fs = fs_buf.value
+                drive_type = ctypes.windll.kernel32.GetDriveTypeW(drive_path)
+                is_removable = (drive_type == 2)  # DRIVE_REMOVABLE = 2
+            except Exception:
+                pass
+        else:
+            p = Path(drive_path)
+            label = p.name
+            fs = "exFAT"
+            is_removable = True
         return label, fs, is_removable
 
     @classmethod
